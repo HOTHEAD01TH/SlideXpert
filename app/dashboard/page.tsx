@@ -97,7 +97,11 @@ export default function DashboardPage() {
                     opacity: sidebarOpen ? 1 : 0,
                     width: sidebarOpen ? "auto" : 0,
                   }}
-                  transition={{ duration: 0.2, delay: 0.1 }}
+                  transition={{ 
+                    duration: 0.3,
+                    ease: [0.4, 0, 0.2, 1],
+                    opacity: { duration: 0.2 }
+                  }}
                   className="text-xl font-bold whitespace-nowrap overflow-hidden"
                 >
                   Smart PPTX
@@ -105,7 +109,7 @@ export default function DashboardPage() {
               </div>
               <div className="space-y-2">
                 {sidebarLinks.map((link) => (
-                  <SidebarLink key={link.href} link={link} />
+                  <SidebarLink key={link.href} link={link} open={sidebarOpen} />
                 ))}
               </div>
             </div>
@@ -122,7 +126,11 @@ export default function DashboardPage() {
                         opacity: sidebarOpen ? 1 : 0,
                         width: sidebarOpen ? "auto" : 0,
                       }}
-                      transition={{ duration: 0.2, delay: 0.1 }}
+                      transition={{ 
+                        duration: 0.3,
+                        ease: [0.4, 0, 0.2, 1],
+                        opacity: { duration: 0.2 }
+                      }}
                       className="text-neutral-200 text-sm whitespace-nowrap overflow-hidden"
                     >
                       Your Profile
@@ -157,7 +165,11 @@ export default function DashboardPage() {
                     opacity: sidebarOpen ? 1 : 0,
                     width: sidebarOpen ? "auto" : 0,
                   }}
-                  transition={{ duration: 0.2, delay: 0.1 }}
+                  transition={{ 
+                    duration: 0.3,
+                    ease: [0.4, 0, 0.2, 1],
+                    opacity: { duration: 0.2 }
+                  }}
                   className="whitespace-nowrap overflow-hidden"
                 >
                   Sign Out

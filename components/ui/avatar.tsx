@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import * as AvatarPrimitive from "@radix-ui/react-avatar"
-
+import { IconUser } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 
 const Avatar = React.forwardRef<
@@ -39,11 +39,13 @@ const AvatarFallback = React.forwardRef<
   <AvatarPrimitive.Fallback
     ref={ref}
     className={cn(
-      "flex h-full w-full items-center justify-center rounded-full bg-muted",
+      "flex h-full w-full items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800",
       className
     )}
     {...props}
-  />
+  >
+    <IconUser className="h-5 w-5 text-neutral-500 dark:text-neutral-400" />
+  </AvatarPrimitive.Fallback>
 ))
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName
 

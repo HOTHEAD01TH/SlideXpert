@@ -56,58 +56,94 @@ export const Sidebar = ({
   children,
   open,
   setOpen,
-  animate,
 }: {
-  children: React.ReactNode;
-  open?: boolean;
-  setOpen?: React.Dispatch<React.SetStateAction<boolean>>;
-  animate?: boolean;
+  children: React.ReactNode
+  open: boolean
+  setOpen: (open: boolean) => void
 }) => {
   return (
-    <SidebarProvider open={open} setOpen={setOpen} animate={animate}>
-      {children}
-    </SidebarProvider>
-  );
-};
-
-export const SidebarBody = (props: React.ComponentProps<typeof motion.div>) => {
-  return (
     <>
-      <DesktopSidebar {...props} />
-      <MobileSidebar {...(props as React.ComponentProps<"div">)} />
+      <DesktopSidebar open={open} setOpen={setOpen}>
+        {children}
+      </DesktopSidebar>
     </>
-  );
-};
+  )
+}
 
 export const DesktopSidebar = ({
   className,
   children,
-  ...props
-}: React.ComponentProps<typeof motion.div>) => {
-  const { open, setOpen, animate } = useSidebar();
+  open,
+  setOpen,
+}: {
+  className?: string
+  children: React.ReactNode
+  open: boolean
+  setOpen: (open: boolean) => void
+}) => {
   return (
-    <>
-      <motion.div
-        className={cn(
-          "h-full px-3 py-4 hidden md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 flex-shrink-0",
-          className
-        )}
+    <motion.div
+      className={cn(
+        "h-full px-3 py-4 hidden md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 flex-shrink-0",
+        className
+      )}
+      animate={{
+        width: open ? "240px" : "64px",
+      }}
+      transition={{
+        duration: 0.3,
+        ease: [0.4, 0, 0.2, 1],
+      }}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+export const SidebarBody = ({ children }: { children: React.ReactNode }) => {
+  return <div className="flex flex-col flex-1 gap-4">{children}</div>
+}
+
+export const SidebarLink = ({
+  link,
+  className,
+  open,
+  ...props
+}: {
+  link: { href: string; label: string; icon: React.ReactNode }
+  className?: string
+  open: boolean
+}) => {
+  return (
+    <a
+      href={link.href}
+      className={cn(
+        "flex items-center gap-3 px-2 py-2 text-neutral-700 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-700/50 rounded-md transition-colors",
+        className
+      )}
+      {...props}
+    >
+      {link.icon}
+      <motion.span
+        initial={{ opacity: 0, width: 0 }}
         animate={{
-          width: animate ? (open ? "220px" : "64px") : "220px",
+          opacity: open ? 1 : 0,
+          width: open ? "auto" : 0,
         }}
-        transition={{
+        transition={{ 
           duration: 0.3,
-          ease: "easeInOut"
+          ease: [0.4, 0, 0.2, 1],
+          opacity: { duration: 0.2 }
         }}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        {...props}
+        className="whitespace-nowrap overflow-hidden"
       >
-        {children}
-      </motion.div>
-    </>
-  );
-};
+        {link.label}
+      </motion.span>
+    </a>
+  )
+}
 
 export const MobileSidebar = ({
   className,
@@ -156,42 +192,5 @@ export const MobileSidebar = ({
         </AnimatePresence>
       </div>
     </>
-  );
-};
-
-export const SidebarLink = ({
-  link,
-  className,
-  ...props
-}: {
-  link: Links;
-  className?: string;
-  props?: LinkProps;
-}) => {
-  const { open, animate } = useSidebar();
-  return (
-    <Link
-      href={link.href}
-      className={cn(
-        "flex items-center gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-neutral-700/50 transition-colors",
-        className
-      )}
-      {...props}
-    >
-      {link.icon}
-      <motion.span
-        animate={{
-          opacity: animate ? (open ? 1 : 0) : 1,
-          width: animate ? (open ? "auto" : 0) : "auto",
-        }}
-        transition={{
-          duration: 0.2,
-          ease: "easeInOut"
-        }}
-        className="text-neutral-700 dark:text-neutral-200 text-sm whitespace-nowrap overflow-hidden"
-      >
-        {link.label}
-      </motion.span>
-    </Link>
   );
 };
