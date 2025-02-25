@@ -9,6 +9,8 @@ import {
 } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
+import { TextHoverEffect } from "@/components/ui/text-hover-effect";
+import { AnimatedTooltip } from "@/components/ui/animated-tooltip";
 
 export const HeroParallax = ({
   products,
@@ -100,17 +102,68 @@ export const HeroParallax = ({
     </div>
   );
 };
-
 export const Header = () => {
+  const teamMembers = [
+    {
+      id: 1,
+      name: "John Doe",
+      designation: "Founder & CEO",
+      image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+    },
+    {
+      id: 2,
+      name: "Sarah Smith", 
+      designation: "Lead Designer",
+      image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+    },
+    {
+      id: 3,
+      name: "Mike Johnson",
+      designation: "Tech Lead",
+      image: "https://images.unsplash.com/photo-1519244703995-f4e0f30006d5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+    },
+    {
+      id: 4,
+      name: "Emily Chen",
+      designation: "Product Manager",
+      image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+    },
+    {
+      id: 5,
+      name: "David Kim",
+      designation: "Marketing Director",
+      image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+    },
+    {
+      id: 6,
+      name: "Lisa Wong",
+      designation: "UX Researcher",
+      image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+    }
+  ];
+
   return (
-    <div className="max-w-7xl relative mx-auto py-20 md:py-40 px-4 w-full left-0 top-0">
-      <h1 className="text-2xl md:text-7xl font-bold text-foreground">
-        Smart PPTX Builder <br /> for Modern Teams
-      </h1>
-      <p className="max-w-2xl text-base md:text-xl mt-8 text-muted-foreground">
-        Create beautiful presentations with AI-powered tools. Transform your ideas into 
-        professional slides in minutes, not hours.
-      </p>
+    <div className="max-w-7xl relative mx-auto py-10 md:py-20 px-4 w-full left-0 top-0">
+      <div className="flex flex-col items-center text-center -mt-10">
+        <h2 className="font-bold text-foreground flex flex-col -space-y-1 md:-space-y-10">
+          <div className="w-full text-6xl md:text-7xl">
+            <TextHoverEffect 
+              text="Smart PPTX Builder" 
+              duration={0.2}
+            />
+          </div>
+          <span className="text-4xl md:text-7xl">for Modern Teams</span>
+        </h2>
+        <p className="max-w-2xl text-base md:text-xl mt-6 text-muted-foreground">
+          Create beautiful presentations with AI-powered tools. Transform your ideas into 
+          professional slides in minutes, not hours.
+        </p>
+        <div className="flex items-center justify-center mt-6">
+          <div className="flex">
+            <AnimatedTooltip items={teamMembers} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

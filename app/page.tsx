@@ -1,7 +1,6 @@
 "use client";
 import { HeroParallax } from "@/components/ui/hero-parallax";
 import { FloatingNav } from "@/components/ui/floating-navbar";
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 const products = [
@@ -107,10 +106,12 @@ export default function Home() {
       <FloatingNav navItems={navItems} />
       <div className="relative">
         <HeroParallax products={products} />
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 text-center">
-          <Button asChild size="lg" className="text-lg">
-            <Link href="/signup">Get Started</Link>
-          </Button>
+        <div className="absolute top-[40%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 text-center">
+          <Link href="/signup">
+            <button className="inline-flex h-12 animate-shimmer items-center justify-center rounded-md border border-slate-800 bg-[linear-gradient(110deg,#000103,45%,#1e2631,55%,#000103)] bg-[length:200%_100%] px-6 font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50">
+              Get Started
+            </button>
+          </Link>
         </div>
       </div>
     </div>
