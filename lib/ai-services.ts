@@ -1,7 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const starAIKey = process.env.STARAI_API_KEY;
 
 interface SlideContent {
   title: string;
@@ -25,21 +24,4 @@ export async function generatePresentationContent(prompt: string): Promise<Slide
   const slides = JSON.parse(response.text());
   
   return slides;
-}
-
-export async function generateSlideImage(imagePrompt: string): Promise<string> {
-  const response = await fetch('https://api.starai.ai/v1/generate', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${starAIKey}`
-    },
-    body: JSON.stringify({
-      prompt: imagePrompt,
-      size: '1024x768'
-    })
-  });
-  
-  const data = await response.json();
-  return data.imageUrl;
 } 

@@ -90,7 +90,7 @@ export default function GeneratePage() {
           user_id: user.id,
           user_prompt: prompt,
           gemini_response: JSON.stringify(textData.slides, null, 2),
-          starai_prompts: imagePrompts
+          image_prompts: imagePrompts
         };
 
         const { error: historyError } = await supabase
@@ -140,7 +140,7 @@ export default function GeneratePage() {
               
               // Add delay only if not using fallback image
               if (!imageData.error && i < slidesWithImages.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 60000));
+                await new Promise(resolve => setTimeout(resolve, 10000));
               }
             } catch (imageError) {
               console.error('Error generating image:', imageError);

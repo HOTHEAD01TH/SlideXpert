@@ -9,7 +9,7 @@ interface GenerationHistory {
   user_id: string
   user_prompt: string
   gemini_response: string
-  starai_prompts: string[]
+  image_prompts: string[]
   created_at: string
 }
 
@@ -65,7 +65,7 @@ export default function HistoryPage() {
             <div>
               <h3 className="text-lg font-medium mb-2">Image Generation Prompts</h3>
               <ul className="list-disc pl-5 space-y-2">
-                {entry.starai_prompts.map((prompt, index) => (
+                {entry.image_prompts.map((prompt, index) => (
                   <li key={index} className="text-neutral-300">{prompt}</li>
                 ))}
               </ul>
