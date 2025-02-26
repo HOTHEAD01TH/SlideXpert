@@ -247,74 +247,78 @@ export default function GeneratePage() {
         
         // Create a new slide
         const pptSlide = pres.addSlide()
+        pptSlide.background = { color: '000000' }
         
         // Add title
         pptSlide.addText(slide.title, {
           x: 0.5,
           y: 0.5,
           w: '90%',
-          fontSize: 24,
+          h: 1.0,
+          fontSize: 32,
           bold: true,
-          color: '6B46C1' // Purple color
+          color: 'FFFFFF',
+          align: 'left'
         })
         
         // Format content as bullet points
         const sentences = slide.content
           .split(/(?<=\.)\s+/)
-          .map((s: string) => s.trim())
-          .filter((s: string) => s.length > 0)
+          .map(s => s.trim())
+          .filter(s => s.length > 0)
         
-        // Add content as bullet points
-        sentences.forEach((sentence: string) => {
+        let currentY = 2.0
+        sentences.forEach((sentence, index) => {
           pptSlide.addText(sentence, {
             x: 0.5,
-            y: 1.5,
+            y: currentY,
             w: '45%',
-            h: 0.5,
-            fontSize: 14,
-            bullet: true
+            h: 0.8,
+            fontSize: 16,
+            color: 'FFFFFF',
+            bullet: { type: 'bullet' },
+            align: 'left',
+            paraSpaceBefore: 10,
+            paraSpaceAfter: 10
           })
+          currentY += 0.9
         })
         
         // Add image if available
         if (slide.imageUrl) {
           try {
-            let imageData
+            let imageData = '';
             
             // For data URLs (base64 images)
             if (slide.imageUrl.startsWith('data:')) {
-              imageData = slide.imageUrl.split(',')[1]
+              // Keep the full data URL including the header
+              imageData = slide.imageUrl;
             } else {
-              // For remote URLs, fetch with error handling
-              try {
-                const response = await fetch(slide.imageUrl, {
-                  cache: 'no-store',
-                  headers: {
-                    'Accept': 'image/*'
-                  }
-                })
-                
-                if (!response.ok) throw new Error('Failed to fetch image')
-                
-                const blob = await response.blob()
-                const arrayBuffer = await blob.arrayBuffer()
-                imageData = Buffer.from(arrayBuffer).toString('base64')
-              } catch (fetchError) {
-                console.error('Error fetching image:', fetchError)
-                throw fetchError
-              }
+              // For remote URLs, fetch and construct proper data URL
+              const response = await fetch(slide.imageUrl, {
+                cache: 'no-store',
+                headers: {
+                  'Accept': 'image/*'
+                }
+              });
+              
+              if (!response.ok) throw new Error('Failed to fetch image');
+              
+              const blob = await response.blob();
+              const arrayBuffer = await blob.arrayBuffer();
+              const base64 = Buffer.from(arrayBuffer).toString('base64');
+              imageData = `data:image/jpeg;base64,${base64}`;
             }
             
             pptSlide.addImage({
               data: imageData,
-              x: 6,        // Moved slightly left
-              y: 1.0,      // Moved slightly up
-              w: 3.5,      // Slightly wider
-              h: 6.0       // Taller to match new aspect ratio
-            })
+              x: 6,
+              y: 0.5,
+              w: 3.5,
+              h: 5.0
+            });
           } catch (error) {
-            console.error('Error adding image to slide:', error)
-            // Continue without the image
+            console.error('Error adding image to slide:', error);
           }
         }
       }
