@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import axios from 'axios'
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 const STARAI_API_KEY = process.env.STARAI_API_KEY
 
@@ -21,10 +23,10 @@ async function generateImage(prompt: string) {
       {
         prompt: cleanPrompt,
         model: 'lyra',
-        aspectRatio: 'square',
-        highResolution: false,
-        images: 1,
-        steps: 20,
+        width: 512,
+        height: 768,  // Taller height
+        highResolution: true,
+        steps: 30,    // Increased steps for better quality
         initialImageMode: 'color',
         stylePreset: 'digital-art'
       },
@@ -34,7 +36,7 @@ async function generateImage(prompt: string) {
           'content-type': 'application/json',
           'X-API-Key': STARAI_API_KEY
         },
-        timeout: 60000 // Increased timeout to 60 seconds
+        timeout: 180000 // Increased timeout to 3 minutes
       }
     )
 
@@ -56,81 +58,67 @@ async function generateImage(prompt: string) {
   }
 }
 
-async function checkImageStatus(creationId: string): Promise<string> {
-  const maxAttempts = 30
-  const delayMs = 3000
-
-  const checkStatus = async (attempt: number): Promise<string> => {
-    if (attempt >= maxAttempts) {
-      throw new Error('Image generation timeout')
-    }
-
-    await new Promise(resolve => setTimeout(resolve, delayMs))
-
+// Add retry logic for image status check
+async function checkImageStatus(creationId: string, maxRetries = 5): Promise<string> {
+  for (let i = 0; i < maxRetries; i++) {
     try {
       const statusResponse = await axios.get(
         `https://api.starryai.com/creations/${creationId}`,
         {
-          headers: {
-            'accept': 'application/json',
-            'X-API-Key': STARAI_API_KEY
-          }
+          headers: { 'X-API-Key': STARAI_API_KEY }
         }
-      )
+      );
 
-      const status = statusResponse.data?.status
-      const imageUrl = statusResponse.data?.images?.[0]?.url
-
-      if (status === 'completed' && imageUrl) {
-        return imageUrl
+      if (statusResponse.data.status === 'completed') {
+        return statusResponse.data.images[0].url;
       }
 
-      if (status === 'failed') {
-        throw new Error('Image generation failed')
-      }
-
-      return checkStatus(attempt + 1)
+      await new Promise(resolve => setTimeout(resolve, 20000)); // Wait 20 seconds between checks
     } catch (error) {
-      console.error('Status check error:', error.response?.data || error.message)
-      if (attempt < maxAttempts - 1) {
-        return checkStatus(attempt + 1)
-      }
-      throw new Error('Failed to check image status')
+      if (i === maxRetries - 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
   }
+  throw new Error('Image generation timeout');
+}
 
-  return checkStatus(0)
+// Add this function to get placeholder image
+async function getPlaceholderImage() {
+  try {
+    // Use unsplash API for free placeholder images
+    const response = await fetch('https://source.unsplash.com/random/512x768/?abstract');
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer).toString('base64');
+  } catch (error) {
+    console.error('Error getting placeholder image:', error);
+    // Return a default base64 image if unsplash fails
+    return 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  }
 }
 
 export async function POST(request: Request) {
   try {
-    const { prompt } = await request.json()
+    const { prompt } = await request.json();
     
     if (!prompt) {
-      return NextResponse.json(
-        { error: 'Prompt is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
-
-    console.log('Generating image for prompt:', prompt)
 
     try {
-      const imageUrl = await generateImage(prompt)
-      return NextResponse.json({ imageUrl })
-    } catch (error) {
-      console.error('Image processing error:', error)
-      // Return a 200 response with an error flag instead of throwing
+      const imageUrl = await generateImage(prompt);
+      return NextResponse.json({ imageUrl });
+    } catch (error: any) {
+      // If StarAI fails, use placeholder
+      const placeholderImage = await getPlaceholderImage();
       return NextResponse.json({ 
-        error: error.message,
-        success: false
-      }, { status: 200 })
+        imageUrl: `data:image/jpeg;base64,${placeholderImage}`,
+        isPlaceholder: true
+      });
     }
-  } catch (error) {
-    console.error('Image request error:', error)
+  } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || 'Failed to generate image' },
+      { error: error.message || 'Internal server error' },
       { status: 500 }
-    )
+    );
   }
 } 
