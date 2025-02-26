@@ -7,15 +7,17 @@ import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar'
 import { ShootingStars } from '@/components/ui/shooting-stars'
 import { StarsBackground } from '@/components/ui/stars-background'
 import { IconFileText, IconHistory, IconSettings, IconLogout, IconBrain, IconPresentationAnalytics, IconUser } from '@tabler/icons-react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { PromptInput } from '@/components/ui/prompt-input'
 
 export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showPrompt, setShowPrompt] = useState(false)
 
   const sidebarLinks = [
     {
@@ -71,6 +73,10 @@ export default function DashboardPage() {
       .map(part => part[0])
       .join('')
       .toUpperCase()
+  }
+
+  const handlePromptSubmit = async (prompt: string) => {
+    router.push(`/dashboard/generate?prompt=${encodeURIComponent(prompt)}`)
   }
 
   if (loading) {
@@ -185,13 +191,16 @@ export default function DashboardPage() {
         <ShootingStars className="opacity-30" />
         
         <div className="p-8 relative z-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
             {/* Generate PPTX Card */}
             <div className="bg-neutral-800/50 backdrop-blur-sm p-6 rounded-lg border border-neutral-700 hover:border-neutral-600 transition-colors">
               <IconBrain className="w-8 h-8 mb-4 text-purple-500" />
               <h3 className="text-xl font-semibold mb-2">Generate Presentation</h3>
               <p className="text-neutral-400 mb-4">Create beautiful presentations from text using AI</p>
-              <button className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-md transition-colors">
+              <button 
+                onClick={() => setShowPrompt(!showPrompt)}
+                className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-md transition-colors"
+              >
                 Start Creating
               </button>
             </div>
@@ -215,6 +224,13 @@ export default function DashboardPage() {
                 View History
               </button>
             </div>
+          </div>
+
+          {/* Prompt Input Section */}
+          <div className="max-w-3xl mx-auto">
+            <AnimatePresence>
+              {showPrompt && <PromptInput onSubmit={handlePromptSubmit} />}
+            </AnimatePresence>
           </div>
         </div>
       </main>
