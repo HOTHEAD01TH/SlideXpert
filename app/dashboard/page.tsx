@@ -75,8 +75,9 @@ export default function DashboardPage() {
       .toUpperCase()
   }
 
-  const handlePromptSubmit = async (prompt: string) => {
+  const handlePromptSubmit = (prompt: string) => {
     router.push(`/dashboard/generate?prompt=${encodeURIComponent(prompt)}`)
+    setShowPrompt(false)
   }
 
   if (loading) {
@@ -210,7 +211,10 @@ export default function DashboardPage() {
               <IconFileText className="w-8 h-8 mb-4 text-blue-500" />
               <h3 className="text-xl font-semibold mb-2">Recent Presentations</h3>
               <p className="text-neutral-400 mb-4">Access your previously generated presentations</p>
-              <button className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-md transition-colors">
+              <button 
+                onClick={() => router.push('/dashboard/presentations')}
+                className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-md transition-colors"
+              >
                 View All
               </button>
             </div>
@@ -220,7 +224,10 @@ export default function DashboardPage() {
               <IconHistory className="w-8 h-8 mb-4 text-green-500" />
               <h3 className="text-xl font-semibold mb-2">Generation History</h3>
               <p className="text-neutral-400 mb-4">View your past generation attempts and results</p>
-              <button className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-md transition-colors">
+              <button 
+                onClick={() => router.push('/dashboard/history')}
+                className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-md transition-colors"
+              >
                 View History
               </button>
             </div>

@@ -51,6 +51,7 @@ export default function GeneratePage() {
     try {
       setError(null);
       setLoading(true);
+      setImagesLoading(true);
       console.log('Starting slide generation...');
 
       const textResponse = await fetch('/api/generate', {
@@ -62,7 +63,6 @@ export default function GeneratePage() {
         })
       });
       
-      console.log('Received response from generate API');
       const textData = await textResponse.json();
       
       if (!textResponse.ok) {
@@ -72,19 +72,16 @@ export default function GeneratePage() {
         throw new Error(textData.error || 'Failed to generate presentation');
       }
 
-      // Validate Gemini response
       if (!textData.slides || !Array.isArray(textData.slides) || textData.slides.length === 0) {
         throw new Error('Invalid response from Gemini API. Please try again.');
       }
       
-      // Set slides immediately with text content
-      setSlides(textData.slides);
-      setLoading(false);
-      
       const slidesWithImages = [...textData.slides];
       const imagePrompts = slidesWithImages.map(slide => slide.imagePrompt);
+      setSlides(slidesWithImages);
+      setLoading(false);
       
-      // Save generation history first
+      // Save initial history
       if (user) {
         const historyEntry = {
           user_id: user.id,
@@ -102,16 +99,10 @@ export default function GeneratePage() {
         }
       }
       
-      // Only proceed with image generation if Gemini response was successful
-      // and not cancelled
+      // Generate images first
       if (!cancelRef.current && textData.slides.length > 0) {
-        setImagesLoading(true);
-        
         for (let i = 0; i < slidesWithImages.length; i++) {
-          if (cancelRef.current) {
-            console.log('Generation cancelled by user');
-            break;
-          }
+          if (cancelRef.current) break;
 
           const slide = slidesWithImages[i];
           setCurrentImageIndex(i);
@@ -126,47 +117,41 @@ export default function GeneratePage() {
               
               const imageData = await imageResponse.json();
               
-              // Handle both successful and fallback cases
               if (imageData.imageUrl) {
-                const updatedSlides = [...slidesWithImages];
-                updatedSlides[i] = {
+                slidesWithImages[i] = {
                   ...slide,
                   imageUrl: imageData.imageUrl
                 };
-                
-                slidesWithImages[i] = updatedSlides[i];
-                setSlides(updatedSlides);
+                setSlides([...slidesWithImages]);
               }
               
-              // Add delay only if not using fallback image
               if (!imageData.error && i < slidesWithImages.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, 10000));
               }
             } catch (imageError) {
               console.error('Error generating image:', imageError);
-              // Continue to next slide without delay on error
             }
           }
         }
-      } else {
-        console.log('Skipping image generation due to invalid Gemini response or cancellation');
       }
       
-      // Save the final presentation with images
+      // Now save the presentation with images
       if (user) {
         const presentation = {
           user_id: user.id,
           prompt: prompt || '',
-          slides: slidesWithImages,
+          slides: slidesWithImages, // Now includes generated images
           created_at: new Date().toISOString()
         };
 
         const { error: presentationError } = await supabase
           .from('presentations')
-          .upsert(presentation);
+          .insert(presentation);
 
         if (presentationError) {
           console.error('Error saving presentation:', presentationError);
+        } else {
+          console.log('Presentation saved successfully with images');
         }
       }
       
@@ -177,16 +162,13 @@ export default function GeneratePage() {
       setError(error.message || 'Failed to generate presentation. Please try again.');
       setLoading(false);
       setImagesLoading(false);
-      
-      if (error.message?.includes('rate limit') || error.message?.includes('wait')) {
-        setError(`${error.message} Click 'Try Again' in a minute.`);
-      }
     }
   };
 
   // Separate function to load existing presentation
   const loadExistingPresentation = async (searchPrompt: string) => {
     try {
+      setLoading(true);
       const { data: existingPresentation } = await supabase
         .from('presentations')
         .select('*')
@@ -194,13 +176,16 @@ export default function GeneratePage() {
         .maybeSingle();
 
       if (existingPresentation) {
+        console.log('Found existing presentation:', existingPresentation);
         setSlides(existingPresentation.slides);
         setLoading(false);
         return true;
       }
+      setLoading(false);
       return false;
     } catch (error) {
       console.error('Error loading existing presentation:', error);
+      setLoading(false);
       return false;
     }
   };
@@ -210,7 +195,11 @@ export default function GeneratePage() {
     const promptParam = searchParams.get('prompt');
     if (promptParam) {
       setPrompt(promptParam);
-      loadExistingPresentation(promptParam);
+      loadExistingPresentation(promptParam).then(exists => {
+        if (!exists) {
+          generateSlides();
+        }
+      });
     }
   }, [searchParams]);
 
@@ -220,15 +209,6 @@ export default function GeneratePage() {
       console.log('Loading state changed to true');
     }
   }, [loading]);
-
-  // Add trigger for generate
-  useEffect(() => {
-    const promptParam = searchParams.get('prompt');
-    if (promptParam && !slides.length) {
-      console.log('Triggering slide generation for:', promptParam);
-      generateSlides();
-    }
-  }, [searchParams]);
 
   const handleDownload = async () => {
     try {
@@ -252,7 +232,7 @@ export default function GeneratePage() {
         // Add title
         pptSlide.addText(slide.title, {
           x: 0.5,
-          y: 0.5,
+          y: 0.3,
           w: '90%',
           h: 1.0,
           fontSize: 32,
@@ -267,21 +247,21 @@ export default function GeneratePage() {
           .map(s => s.trim())
           .filter(s => s.length > 0)
         
-        let currentY = 2.0
+        let currentY = 1.5
         sentences.forEach((sentence, index) => {
           pptSlide.addText(sentence, {
             x: 0.5,
             y: currentY,
             w: '45%',
-            h: 0.8,
-            fontSize: 16,
+            h: 0.7,
+            fontSize: 14,
             color: 'FFFFFF',
             bullet: { type: 'bullet' },
             align: 'left',
-            paraSpaceBefore: 10,
-            paraSpaceAfter: 10
+            paraSpaceBefore: 8,
+            paraSpaceAfter: 8
           })
-          currentY += 0.9
+          currentY += 0.8
         })
         
         // Add image if available
@@ -313,7 +293,7 @@ export default function GeneratePage() {
             pptSlide.addImage({
               data: imageData,
               x: 6,
-              y: 0.5,
+              y: 0.3,
               w: 3.5,
               h: 5.0
             });
@@ -369,6 +349,17 @@ export default function GeneratePage() {
 
   return (
     <div className="container mx-auto py-8 px-4">
+      {!slides.length && (
+        <div className="mb-6 flex justify-center">
+          <button
+            onClick={generateSlides}
+            className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2 rounded-md transition-colors flex items-center gap-2"
+          >
+            Generate New Presentation
+          </button>
+        </div>
+      )}
+      
       {imagesLoading && (
         <div className="fixed bottom-4 right-4 bg-neutral-800 text-white px-4 py-2 rounded-md flex items-center gap-2 shadow-lg">
           <IconLoader2 className="w-4 h-4 animate-spin" />

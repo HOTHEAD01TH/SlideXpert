@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { IconLoader2 } from '@tabler/icons-react'
 
-interface GenerationHistory {
-  id: string
-  user_id: string
-  user_prompt: string
-  gemini_response: string
-  image_prompts: string[]
-  created_at: string
-}
+type GenerationHistory = {
+  id: string;
+  user_id: string;
+  user_prompt: string;
+  gemini_response: string;
+  image_prompts: string[];
+  created_at: string;
+};
 
 export default function HistoryPage() {
   const [history, setHistory] = useState<GenerationHistory[]>([])
@@ -22,23 +22,29 @@ export default function HistoryPage() {
   }, [])
 
   async function loadHistory() {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (user) {
-      const { data, error } = await supabase
-        .from('generation_history')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
       
-      if (data) {
-        setHistory(data)
+      if (user) {
+        const { data, error } = await supabase
+          .from('generation_history')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+        
+        if (error) {
+          console.error('Error loading history:', error)
+          return
+        }
+        
+        console.log('Loaded history:', data)
+        setHistory(data || [])
       }
-      if (error) {
-        console.error('Error loading history:', error)
-      }
+      setLoading(false)
+    } catch (error) {
+      console.error('Error in loadHistory:', error)
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (

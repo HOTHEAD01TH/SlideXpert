@@ -37,10 +37,18 @@ Return ONLY a JSON array in this exact format, with no other text or markdown:
 [
   {
     "title": "string (max 50 chars)",
-    "content": "string (max 100 words)",
+    "content": "string (minimum 4-5 bullet points, make each point concise and informative)",
     "imagePrompt": "string (max 100 chars)"
   }
 ]
+
+Guidelines for content:
+- Each slide should have 4-5 key points
+- Points should be clear and concise
+- Ensure logical flow between points
+- End each point with a period
+- Include relevant facts and examples
+- Avoid single-word bullet points
 
 The response must be valid JSON with exactly 5 slides.`
         }]

@@ -17,23 +17,29 @@ export default function PresentationsPage() {
   }, [])
 
   async function loadPresentations() {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (user) {
-      const { data, error } = await supabase
-        .from('presentations')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
       
-      if (data) {
-        setPresentations(data)
+      if (user) {
+        const { data, error } = await supabase
+          .from('presentations')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+        
+        if (data) {
+          console.log('Loaded presentations:', data);
+          setPresentations(data)
+        }
+        if (error) {
+          console.error('Error loading presentations:', error)
+        }
       }
-      if (error) {
-        console.error('Error loading presentations:', error)
-      }
+    } catch (error) {
+      console.error('Error in loadPresentations:', error);
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   if (loading) {
@@ -63,9 +69,9 @@ export default function PresentationsPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => router.push(`/dashboard/generate?prompt=${encodeURIComponent(presentation.prompt)}`)}
-                  className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-md transition-colors"
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-md transition-colors"
                 >
-                  View & Edit
+                  View Presentation
                 </button>
               </div>
             </div>
