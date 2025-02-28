@@ -22,12 +22,21 @@ export default function GeneratePage() {
   const [user, setUser] = useState<any>(null)
   const [isCancelled, setIsCancelled] = useState(false)
   const cancelRef = useRef(false)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [hasGenerated, setHasGenerated] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user)
-    })
-  }, [])
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('🔐 Auth check:', user ? 'User found' : 'No user');
+      setUser(user);
+      setLoading(false);
+      setAuthChecked(true);
+    };
+    
+    checkAuth();
+  }, []);
 
   const handleCancelGeneration = () => {
     setIsCancelled(true)
@@ -48,11 +57,23 @@ export default function GeneratePage() {
   }, [prompt]);
 
   const generateSlides = async () => {
+    if (isGenerating) {
+      console.log('🚫 Generation already in progress');
+      return;
+    }
+
     try {
+      setIsGenerating(true);
+      if (!user) {
+        console.error('❌ No authenticated user found');
+        throw new Error('You must be logged in to generate presentations');
+      }
+      console.log('👤 Authenticated as user:', user.id);
+
+      console.log('🚀 Starting slide generation for prompt:', prompt);
       setError(null);
       setLoading(true);
       setImagesLoading(true);
-      console.log('Starting slide generation...');
 
       const textResponse = await fetch('/api/generate', {
         method: 'POST',
@@ -83,6 +104,8 @@ export default function GeneratePage() {
       
       // Save initial history
       if (user) {
+        console.log('👤 Current user:', user.id);
+        console.log('📝 Preparing to save generation history...');
         const historyEntry = {
           user_id: user.id,
           user_prompt: prompt,
@@ -90,17 +113,28 @@ export default function GeneratePage() {
           image_prompts: imagePrompts
         };
 
-        const { error: historyError } = await supabase
+        console.log('📊 History entry data:', historyEntry);
+        const { data: historyData, error: historyError } = await supabase
           .from('generation_history')
-          .insert(historyEntry);
+          .insert(historyEntry)
+          .select()
+          .single();
 
         if (historyError) {
-          console.error('Error saving generation history:', historyError);
+          console.error('❌ Error saving generation history:', historyError);
+          console.error('Error details:', {
+            code: historyError.code,
+            message: historyError.message,
+            details: historyError.details
+          });
+        } else {
+          console.log('✅ Generation history saved successfully, ID:', historyData.id);
         }
       }
       
       // Generate images first
       if (!cancelRef.current && textData.slides.length > 0) {
+        console.log('🎨 Starting image generation...');
         for (let i = 0; i < slidesWithImages.length; i++) {
           if (cancelRef.current) break;
 
@@ -137,29 +171,46 @@ export default function GeneratePage() {
       
       // Now save the presentation with images
       if (user) {
+        console.log('💾 Preparing to save presentation...');
         const presentation = {
           user_id: user.id,
           prompt: prompt || '',
-          slides: slidesWithImages, // Now includes generated images
+          slides: slidesWithImages,
           created_at: new Date().toISOString()
         };
+        
+        console.log('📊 Presentation data:', {
+          user_id: presentation.user_id,
+          prompt: presentation.prompt,
+          slides_count: presentation.slides.length
+        });
 
-        const { error: presentationError } = await supabase
+        const { data, error: presentationError } = await supabase
           .from('presentations')
-          .insert(presentation);
+          .insert(presentation)
+          .select()
+          .single();
 
         if (presentationError) {
-          console.error('Error saving presentation:', presentationError);
+          console.error('❌ Error saving presentation:', presentationError);
+          console.error('Error details:', {
+            code: presentationError.code,
+            message: presentationError.message,
+            details: presentationError.details
+          });
         } else {
-          console.log('Presentation saved successfully with images');
+          console.log('✅ Presentation saved successfully, ID:', data.id);
         }
       }
       
       setImagesLoading(false);
       setCurrentImageIndex(-1);
+      console.log('🎉 Generation process completed successfully');
     } catch (error: any) {
-      console.error('Error in generateSlides:', error);
-      setError(error.message || 'Failed to generate presentation. Please try again.');
+      console.error('❌ Error in generation process:', error);
+      setError(error.message || 'An unexpected error occurred');
+    } finally {
+      setIsGenerating(false);
       setLoading(false);
       setImagesLoading(false);
     }
@@ -178,6 +229,61 @@ export default function GeneratePage() {
       if (existingPresentation) {
         console.log('Found existing presentation:', existingPresentation);
         setSlides(existingPresentation.slides);
+        
+        // Check if any slides are missing images
+        const needsImages = existingPresentation.slides.some(slide => !slide.imageUrl);
+        if (needsImages) {
+          console.log('🎨 Some slides missing images, regenerating...');
+          setImagesLoading(true);
+          const slidesWithImages = [...existingPresentation.slides];
+          
+          // Generate images for slides that don't have them
+          for (let i = 0; i < slidesWithImages.length; i++) {
+            const slide = slidesWithImages[i];
+            if (!slide.imageUrl && slide.imagePrompt) {
+              setCurrentImageIndex(i);
+              try {
+                const imageResponse = await fetch('/api/generate-image', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ prompt: slide.imagePrompt })
+                });
+                
+                const imageData = await imageResponse.json();
+                
+                if (imageData.imageUrl) {
+                  slidesWithImages[i] = {
+                    ...slide,
+                    imageUrl: imageData.imageUrl
+                  };
+                  setSlides([...slidesWithImages]);
+                }
+                
+                if (i < slidesWithImages.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 10000));
+                }
+              } catch (imageError) {
+                console.error('Error generating image:', imageError);
+              }
+            }
+          }
+          
+          // Update presentation with new images
+          const { error: updateError } = await supabase
+            .from('presentations')
+            .update({ slides: slidesWithImages })
+            .eq('id', existingPresentation.id);
+            
+          if (updateError) {
+            console.error('Error updating presentation with images:', updateError);
+          } else {
+            console.log('✅ Updated presentation with generated images');
+          }
+          
+          setImagesLoading(false);
+          setCurrentImageIndex(-1);
+        }
+        
         setLoading(false);
         return true;
       }
@@ -190,18 +296,28 @@ export default function GeneratePage() {
     }
   };
 
-  // Use this in your useEffect
+  // Modify the useEffect for prompt
   useEffect(() => {
     const promptParam = searchParams.get('prompt');
-    if (promptParam) {
+    if (promptParam && !loading && !hasGenerated && user) {
       setPrompt(promptParam);
       loadExistingPresentation(promptParam).then(exists => {
         if (!exists) {
+          setHasGenerated(true); // Mark as generated
           generateSlides();
+        } else {
+          setHasGenerated(true); // Mark as generated even if we found existing
         }
       });
     }
-  }, [searchParams]);
+  }, [searchParams, loading, user, hasGenerated]); // Add hasGenerated to dependencies
+
+  // Reset hasGenerated when prompt changes
+  useEffect(() => {
+    return () => {
+      setHasGenerated(false);
+    };
+  }, [prompt]);
 
   // Add this useEffect to monitor loading state
   useEffect(() => {
@@ -318,11 +434,37 @@ export default function GeneratePage() {
     }
   }
 
-  if (loading) {
+  const savePresentation = async (prompt: string, slides: Slide[]) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (user) {
+      const { data, error } = await supabase
+        .from('presentations')
+        .insert({
+          user_id: user.id,
+          prompt: prompt,
+          slides: slides
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error saving presentation:', error)
+        return null
+      }
+
+      return data
+    }
+    return null
+  }
+
+  if (loading || !authChecked) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <IconLoader2 className="w-8 h-8 animate-spin text-purple-500" />
-        <p className="mt-4 text-neutral-400">Generating your presentation...</p>
+        <p className="mt-4 text-neutral-400">
+          {!authChecked ? 'Checking authentication...' : 'Generating your presentation...'}
+        </p>
       </div>
     )
   }

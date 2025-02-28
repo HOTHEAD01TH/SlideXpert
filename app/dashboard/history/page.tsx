@@ -31,18 +31,14 @@ export default function HistoryPage() {
           .select('*')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
+          .limit(20)
         
-        if (error) {
-          console.error('Error loading history:', error)
-          return
-        }
-        
-        console.log('Loaded history:', data)
-        setHistory(data || [])
+        if (error) throw error
+        if (data) setHistory(data)
       }
-      setLoading(false)
     } catch (error) {
-      console.error('Error in loadHistory:', error)
+      console.error('Error loading history:', error)
+    } finally {
       setLoading(false)
     }
   }
