@@ -17,7 +17,6 @@ export const HeroParallax = ({
 }: {
   products: {
     title: string;
-    link: string;
     thumbnail: string;
   }[];
 }) => {
@@ -145,15 +144,13 @@ export const Header = () => {
   return (
     <div className="max-w-7xl relative mx-auto py-10 md:py-20 px-4 w-full left-0 top-0">
       <div className="flex flex-col items-center text-center -mt-10">
-        <h2 className="font-bold text-foreground flex flex-col -space-y-1 md:-space-y-10">
-          <div className="w-full text-6xl md:text-7xl">
+        <h2 className="font-bold text-foreground">
+          <div className="w-full text-7xl md:text-8xl">
             <TextHoverEffect 
-              text="Smart PPTX Builder" 
+              text="SlideXpert" 
               duration={0.2}
             />
           </div>
-          <br className="hidden md:block"></br>
-          <span className="text-4xl md:text-7xl">for Modern Teams</span>
         </h2>
         <p className="max-w-2xl text-base md:text-xl mt-6 text-muted-foreground">
           Create beautiful presentations with AI-powered tools. Transform your ideas into 
@@ -175,7 +172,6 @@ export const ProductCard = ({
 }: {
   product: {
     title: string;
-    link: string;
     thumbnail: string;
   };
   translate: MotionValue<number>;
@@ -191,10 +187,7 @@ export const ProductCard = ({
       key={product.title}
       className="group/product h-96 w-[30rem] relative flex-shrink-0"
     >
-      <Link
-        href={product.link}
-        className="block group-hover/product:shadow-2xl "
-      >
+      <div className="block group-hover/product:shadow-2xl">
         <Image
           src={product.thumbnail}
           height="600"
@@ -202,7 +195,7 @@ export const ProductCard = ({
           className="object-cover object-left-top absolute h-full w-full inset-0"
           alt={product.title}
         />
-      </Link>
+      </div>
       <div className="absolute inset-0 h-full w-full opacity-0 group-hover/product:opacity-80 bg-background pointer-events-none"></div>
       <h2 className="absolute bottom-4 left-4 opacity-0 group-hover/product:opacity-100 text-foreground">
         {product.title}

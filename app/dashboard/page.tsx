@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar'
 import { ShootingStars } from '@/components/ui/shooting-stars'
 import { StarsBackground } from '@/components/ui/stars-background'
-import { IconFileText, IconHistory, IconSettings, IconLogout, IconBrain, IconPresentationAnalytics, IconUser } from '@tabler/icons-react'
+import { IconFileText, IconHistory, IconSettings, IconLogout, IconBrain, IconPresentationAnalytics, IconUser, IconAlertTriangle, IconCreditCard, IconInfoCircle, IconMail } from '@tabler/icons-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -35,6 +35,26 @@ export default function DashboardPage() {
       label: "History",
       href: "/dashboard/history",
       icon: <IconHistory className="w-6 h-6 text-neutral-700 dark:text-neutral-200" />,
+    },
+    {
+      label: "Features",
+      href: "/features",
+      icon: <IconPresentationAnalytics className="w-6 h-6 text-neutral-700 dark:text-neutral-200" />,
+    },
+    {
+      label: "Pricing",
+      href: "/pricing",
+      icon: <IconCreditCard className="w-6 h-6 text-neutral-700 dark:text-neutral-200" />,
+    },
+    {
+      label: "About",
+      href: "/about",
+      icon: <IconInfoCircle className="w-6 h-6 text-neutral-700 dark:text-neutral-200" />,
+    },
+    {
+      label: "Contact",
+      href: "/contact",
+      icon: <IconMail className="w-6 h-6 text-neutral-700 dark:text-neutral-200" />,
     },
     {
       label: "Settings",
@@ -114,7 +134,7 @@ export default function DashboardPage() {
                   }}
                   className="text-xl font-bold whitespace-nowrap overflow-hidden"
                 >
-                  Smart PPTX
+                SlideXpert
                 </motion.span>
               </div>
               <div className="space-y-2">
@@ -195,6 +215,13 @@ export default function DashboardPage() {
         <ShootingStars className="opacity-30" />
         
         <div className="p-8 relative z-10">
+
+        <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3">
+        <IconAlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+        <p className="text-sm text-amber-800">
+          Beta Version: Please avoid spamming the service. If images don't appear in some slides, try refreshing the page.
+        </p>
+      </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
             {/* Generate PPTX Card */}
             <div className="bg-neutral-800/50 backdrop-blur-sm p-6 rounded-lg border border-neutral-700 hover:border-neutral-600 transition-colors">

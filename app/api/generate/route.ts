@@ -67,16 +67,33 @@ The response must be valid JSON with exactly 5 slides.`
     const cleanedText = text.trim()
       .replace(/```json\s*|\s*```/g, '')
       .replace(/^[\s\S]*?\[/, '[')
-      .replace(/\][\s\S]*$/, ']');
+      .replace(/\][\s\S]*$/, ']')
+      .replace(/\n/g, ' ')
+      .replace(/,(\s*})/g, '$1')
+      .replace(/,(\s*])/g, '$1');
     
     try {
-      const parsed = JSON.parse(cleanedText);
+      const fixedText = cleanedText
+        .replace(/([{\[,]\s*)"([^"]+)":\s*"([^"]+)([^"]*)$/gm, '$1"$2": "$3"$4')
+        .replace(/([^,{])\s*}/g, '$1,}')
+        .replace(/,\s*([}\]])/g, '$1');
+
+      const parsed = JSON.parse(fixedText);
+      
       if (!Array.isArray(parsed) || parsed.length !== 5) {
         throw new Error('Invalid response format');
       }
-      return parsed;
+      
+      const validatedSlides = parsed.map(slide => ({
+        title: String(slide.title || '').slice(0, 50),
+        content: String(slide.content || ''),
+        imagePrompt: String(slide.imagePrompt || '').slice(0, 100)
+      }));
+
+      return validatedSlides;
     } catch (parseError) {
       console.error('Parse error:', parseError);
+      console.error('Problematic text:', cleanedText);
       throw new Error('Failed to parse Gemini response');
     }
   } catch (error) {

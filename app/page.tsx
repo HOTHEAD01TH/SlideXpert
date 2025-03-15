@@ -2,81 +2,67 @@
 import { HeroParallax } from "@/components/ui/hero-parallax";
 import { FloatingNav } from "@/components/ui/floating-navbar";
 import Link from "next/link";
+import { Footer } from '@/components/ui/footer'
 
 const products = [
   {
     title: "Data Analytics",
-    link: "/features/analytics", 
     thumbnail: "/temp1.jpg"
   },
   {
     title: "Team Collaboration",
-    link: "/features/collaboration",
     thumbnail: "/temp2.jpg"
   },
   {
     title: "Custom Branding",
-    link: "/features/branding",
     thumbnail: "/temp3.jpg"
   },
   {
     title: "Interactive Charts",
-    link: "/features/charts",
     thumbnail: "/temp4.jpg"
   },
   {
     title: "Video Integration",
-    link: "/features/video",
     thumbnail: "/temp5.jpg"
   },
   {
     title: "Real-time Editing",
-    link: "/features/realtime",
     thumbnail: "/temp6.jpg"
   },
   {
     title: "Export Options",
-    link: "/features/export",
     thumbnail: "/temp7.jpg"
   },
   {
     title: "Cloud Storage",
-    link: "/features/storage",
     thumbnail: "/temp8.jpg"
   },
   {
     title: "Version Control",
-    link: "/features/versions",
     thumbnail: "/temp9.jpg"
   },
   {
     title: "Mobile Support",
-    link: "/features/mobile",
     thumbnail: "/temp10.jpg"
   },
   {
     title: "Advanced Security",
-    link: "/features/security",
     thumbnail: "/temp11.jpg"
   },
   {
     title: "API Access",
-    link: "/features/api",
     thumbnail: "/temp12.jpg"
   },
   {
     title: "Smart Presentations",
-    link: "/features/smart-presentations",
     thumbnail: "/temp13.jpg"
   },
   {
     title: "AI-Powered Content",
-    link: "/features/ai-content",
     thumbnail: "/temp14.jpg"
   },
   {
     title: "Beautiful Templates",
-    link: "/features/templates",
     thumbnail: "/temp15.jpg"
   },
 ];
@@ -84,19 +70,19 @@ const products = [
 const navItems = [
   {
     name: "Features",
-    link: "https://hothead.vercel.app",
+    link: "/features",
   },
   {
     name: "Pricing",
-    link: "https://hothead.vercel.app",
+    link: "/pricing",
   },
   {
     name: "About",
-    link: "https://hothead.vercel.app",
+    link: "/about",
   },
   {
     name: "Contact",
-    link: "https://hothead.vercel.app",
+    link: "/contact",
   },
 ];
 
@@ -114,6 +100,7 @@ export default function Home() {
           </Link>
         </div>
       </div>
+      <Footer />
     </div>
   );
 }

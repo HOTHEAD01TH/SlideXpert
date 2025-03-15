@@ -25,6 +25,7 @@ function GenerateContent() {
   const [authChecked, setAuthChecked] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -169,28 +170,74 @@ function GenerateContent() {
             setCurrentImageIndex(i);
             
             if (slide.imagePrompt) {
-              try {
-                const imageResponse = await fetch('/api/generate-image', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ prompt: slide.imagePrompt })
-                });
-                
-                const imageData = await imageResponse.json();
-                
-                if (imageData.imageUrl) {
+              let retryCount = 0;
+              const maxRetries = 1;
+
+              while (retryCount <= maxRetries) {
+                try {
+                  const imageResponse = await fetch('/api/generate-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                      prompt: slide.imagePrompt,
+                      retryCount
+                    })
+                  });
+                  
+                  if (!imageResponse.ok) {
+                    if (imageResponse.status === 504) {
+                      console.warn('Image generation timed out, using placeholder');
+                      slidesWithImages[i] = {
+                        ...slide,
+                        imageUrl: '/placeholder.png'
+                      };
+                      break;
+                    } else {
+                      const errorData = await imageResponse.json();
+                      console.error('Image generation error:', errorData.error);
+                      
+                      if (retryCount < maxRetries) {
+                        console.log(`Retrying image generation for slide ${i + 1} (attempt ${retryCount + 1})`);
+                        retryCount++;
+                        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+                        continue;
+                      }
+                      
+                      slidesWithImages[i] = {
+                        ...slide,
+                        imageUrl: '/placeholder.png'
+                      };
+                    }
+                  } else {
+                    const imageData = await imageResponse.json();
+                    if (imageData.imageUrl) {
+                      slidesWithImages[i] = {
+                        ...slide,
+                        imageUrl: imageData.imageUrl
+                      };
+                    }
+                    break; // Success, exit retry loop
+                  }
+                } catch (imageError) {
+                  console.error('Error generating image:', imageError);
+                  if (retryCount < maxRetries) {
+                    console.log(`Retrying image generation for slide ${i + 1} (attempt ${retryCount + 1})`);
+                    retryCount++;
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+                    continue;
+                  }
                   slidesWithImages[i] = {
                     ...slide,
-                    imageUrl: imageData.imageUrl
+                    imageUrl: '/placeholder.png'
                   };
-                  setSlides([...slidesWithImages]);
+                  break;
                 }
-                
-                if (!imageData.error && i < slidesWithImages.length - 1) {
-                  await new Promise(resolve => setTimeout(resolve, 10000));
-                }
-              } catch (imageError) {
-                console.error('Error generating image:', imageError);
+              }
+              
+              setSlides([...slidesWithImages]);
+              
+              if (i < slidesWithImages.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 10000));
               }
             }
           }
@@ -280,21 +327,43 @@ function GenerateContent() {
                   body: JSON.stringify({ prompt: slide.imagePrompt })
                 });
                 
-                const imageData = await imageResponse.json();
-                
-                if (imageData.imageUrl) {
-                  slidesWithImages[i] = {
-                    ...slide,
-                    imageUrl: imageData.imageUrl
-                  };
-                  setSlides([...slidesWithImages]);
+                if (!imageResponse.ok) {
+                  if (imageResponse.status === 504) {
+                    console.warn('Image generation timed out, using placeholder');
+                    slidesWithImages[i] = {
+                      ...slide,
+                      imageUrl: '/placeholder.png'
+                    };
+                  } else {
+                    const errorData = await imageResponse.json();
+                    console.error('Image generation error:', errorData.error);
+                    slidesWithImages[i] = {
+                      ...slide,
+                      imageUrl: '/placeholder.png'
+                    };
+                  }
+                } else {
+                  const imageData = await imageResponse.json();
+                  if (imageData.imageUrl) {
+                    slidesWithImages[i] = {
+                      ...slide,
+                      imageUrl: imageData.imageUrl
+                    };
+                  }
                 }
+                
+                setSlides([...slidesWithImages]);
                 
                 if (i < slidesWithImages.length - 1) {
                   await new Promise(resolve => setTimeout(resolve, 10000));
                 }
               } catch (imageError) {
                 console.error('Error generating image:', imageError);
+                slidesWithImages[i] = {
+                  ...slide,
+                  imageUrl: '/placeholder.png'
+                };
+                setSlides([...slidesWithImages]);
               }
             }
           }
@@ -538,7 +607,7 @@ function GenerateContent() {
           <IconLoader2 className="w-4 h-4 animate-spin" />
           <span>
             {currentImageIndex >= 0 
-              ? `Generating image ${currentImageIndex + 1} of ${slides.length}...` 
+              ? `Generating image ${currentImageIndex + 1} of ${slides.length}${retryCount > 0 ? ` (Retry ${retryCount})` : ''}...` 
               : "Generating images..."}
           </span>
           <button
