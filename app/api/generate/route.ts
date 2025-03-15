@@ -90,7 +90,7 @@ export const maxDuration = 300 // 5 minutes timeout
 
 export async function POST(request: Request) {
   try {
-    await limiter.check(50, 'GEMINI_API_KEY') // Increase rate limit tokens
+    await limiter.check(50) // Increase rate limit tokens
 
     const { prompt, checkExisting = true } = await request.json()
     
