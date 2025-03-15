@@ -110,20 +110,29 @@ export const SidebarLink = ({
   link,
   className,
   open,
-  ...props
 }: {
-  link: { href: string; label: string; icon: React.ReactNode }
-  className?: string
-  open: boolean
+  link: { 
+    href: string; 
+    label: string; 
+    icon: React.ReactNode;
+    onClick?: () => void;
+  }
+  className?: string;
+  open: boolean;
 }) => {
   return (
     <a
       href={link.href}
+      onClick={(e) => {
+        if (link.onClick) {
+          e.preventDefault();
+          link.onClick();
+        }
+      }}
       className={cn(
         "flex items-center gap-3 px-2 py-2 text-neutral-700 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-700/50 rounded-md transition-colors",
         className
       )}
-      {...props}
     >
       <div className={cn("transition-all flex items-center justify-center", open ? "w-5 h-5" : "w-8 h-8")}>
         {link.icon}
@@ -144,8 +153,8 @@ export const SidebarLink = ({
         {link.label}
       </motion.span>
     </a>
-  )
-}
+  );
+};
 
 export const MobileSidebar = ({
   className,

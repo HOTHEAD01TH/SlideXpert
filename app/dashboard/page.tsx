@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar'
 import { ShootingStars } from '@/components/ui/shooting-stars'
 import { StarsBackground } from '@/components/ui/stars-background'
-import { IconFileText, IconHistory, IconSettings, IconLogout, IconBrain, IconPresentationAnalytics, IconUser, IconAlertTriangle, IconCreditCard, IconInfoCircle, IconMail } from '@tabler/icons-react'
+import { IconFileText, IconHistory, IconSettings, IconLogout, IconBrain, IconPresentationAnalytics, IconUser, IconAlertTriangle, IconCreditCard, IconInfoCircle, IconMail, IconX } from '@tabler/icons-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -19,12 +19,14 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showPrompt, setShowPrompt] = useState(false)
+  const [showBetaAlert, setShowBetaAlert] = useState(true)
 
   const sidebarLinks = [
     {
       label: "Generate PPTX",
-      href: "/dashboard/generate",
+      href: "#",
       icon: <IconBrain className="w-6 h-6 text-neutral-700 dark:text-neutral-200" />,
+      onClick: () => setShowPrompt(true)
     },
     {
       label: "My Presentations",
@@ -215,13 +217,23 @@ export default function DashboardPage() {
         <ShootingStars className="opacity-30" />
         
         <div className="p-8 relative z-10">
+          {showBetaAlert && (
+            <div className="mb-8 p-4 bg-neutral-800/80 border border-amber-900/50 rounded-lg flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <IconAlertTriangle className="w-5 h-5 text-amber-500/80 flex-shrink-0" />
+                <p className="text-sm text-amber-200/80">
+                  Beta Version: Please avoid spamming the service. If images don't appear in some slides, try refreshing the page.
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowBetaAlert(false)}
+                className="text-amber-200/80 hover:text-amber-200 transition-colors"
+              >
+                <IconX className="w-5 h-5" />
+              </button>
+            </div>
+          )}
 
-        <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3">
-        <IconAlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
-        <p className="text-sm text-amber-800">
-          Beta Version: Please avoid spamming the service. If images don't appear in some slides, try refreshing the page.
-        </p>
-      </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
             {/* Generate PPTX Card */}
             <div className="bg-neutral-800/50 backdrop-blur-sm p-6 rounded-lg border border-neutral-700 hover:border-neutral-600 transition-colors">
