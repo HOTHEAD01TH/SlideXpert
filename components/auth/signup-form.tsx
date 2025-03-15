@@ -49,12 +49,12 @@ export function SignupForm() {
       const result = await signup(data)
 
       if (result.error) {
-        setError(result.error)
+        setError(result.error.message)
         setIsPending(false)
         return
       }
 
-      // Redirect to verification page or dashboard
+      // Redirect to verification page
       router.push("/verify-email")
     } catch (err) {
       setError("An unexpected error occurred. Please try again.")

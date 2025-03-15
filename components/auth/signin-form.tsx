@@ -48,7 +48,7 @@ export function SigninForm() {
       const result = await login(data)
 
       if (result.error) {
-        setError(result.error)
+        setError(result.error.message)
         setIsPending(false)
         return
       }
