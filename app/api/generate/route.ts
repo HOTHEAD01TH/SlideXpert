@@ -25,7 +25,7 @@ const model = new GoogleGenerativeAI(GEMINI_API_KEY!)
     ],
   });
 
-async function generateSlides(prompt: string) {
+async function generateSlides(prompt: string, signal: AbortSignal) {
   try {
     const result = await model.generateContent({
       contents: [{
@@ -52,17 +52,22 @@ Guidelines for content:
 
 The response must be valid JSON with exactly 5 slides.`
         }]
-      }]
+      }],
+      generationConfig: {
+        maxOutputTokens: 2048,
+        temperature: 0.7,
+        topP: 0.8,
+        topK: 40
+      }
     });
 
     const text = result.response.text();
     console.log('Raw Gemini response:', text);
 
-    // Clean the response and ensure it's valid JSON
     const cleanedText = text.trim()
-      .replace(/```json\s*|\s*```/g, '') // Remove code blocks
-      .replace(/^[\s\S]*?\[/, '[')       // Remove any text before the array
-      .replace(/\][\s\S]*$/, ']');       // Remove any text after the array
+      .replace(/```json\s*|\s*```/g, '')
+      .replace(/^[\s\S]*?\[/, '[')
+      .replace(/\][\s\S]*$/, ']');
     
     try {
       const parsed = JSON.parse(cleanedText);
@@ -71,19 +76,28 @@ The response must be valid JSON with exactly 5 slides.`
       }
       return parsed;
     } catch (parseError) {
-      console.error('JSON Parse Error:', parseError);
-      throw new Error('Failed to parse presentation data');
+      console.error('Parse error:', parseError);
+      throw new Error('Failed to parse Gemini response');
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Gemini API error:', error);
     throw error;
   }
 }
 
+export const runtime = 'edge'
+export const maxDuration = 300 // 5 minutes timeout
+
 export async function POST(request: Request) {
   try {
-    const { prompt, checkExisting = true } = await request.json();
+    await limiter.check(50, 'GEMINI_API_KEY') // Increase rate limit tokens
+
+    const { prompt, checkExisting = true } = await request.json()
     
+    // Add timeout to Gemini API call
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 120000) // 2 minutes
+
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
@@ -104,14 +118,24 @@ export async function POST(request: Request) {
       }
     }
 
-    // Only generate new slides if not found in cache
-    const slides = await generateSlides(prompt);
-    return NextResponse.json({ slides, fromCache: false });
+    try {
+      const slides = await generateSlides(prompt, controller.signal)
+      clearTimeout(timeoutId)
+      return NextResponse.json({ slides, fromCache: false })
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        return NextResponse.json(
+          { error: 'Request took too long to process. Please try again with a simpler prompt.' },
+          { status: 408 }
+        )
+      }
+      throw error
+    }
   } catch (error: any) {
-    console.error('Generate API error:', error);
+    console.error('Generate API error:', error)
     return NextResponse.json(
       { error: error.message || 'Failed to generate presentation' },
       { status: error.status || 500 }
-    );
+    )
   }
 }
