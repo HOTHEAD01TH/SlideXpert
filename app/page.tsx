@@ -84,19 +84,19 @@ const products = [
 const navItems = [
   {
     name: "Features",
-    link: "/features",
+    link: "https://hothead.vercel.app",
   },
   {
     name: "Pricing",
-    link: "/pricing",
+    link: "https://hothead.vercel.app",
   },
   {
     name: "About",
-    link: "/about",
+    link: "https://hothead.vercel.app",
   },
   {
     name: "Contact",
-    link: "/contact",
+    link: "https://hothead.vercel.app",
   },
 ];
 

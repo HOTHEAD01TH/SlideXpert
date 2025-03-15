@@ -231,7 +231,7 @@ export default function GeneratePage() {
         setSlides(existingPresentation.slides);
         
         // Check if any slides are missing images
-        const needsImages = existingPresentation.slides.some(slide => !slide.imageUrl);
+        const needsImages = existingPresentation.slides.some((slide: Slide) => !slide.imageUrl);
         if (needsImages) {
           console.log('🎨 Some slides missing images, regenerating...');
           setImagesLoading(true);

@@ -152,6 +152,7 @@ export const Header = () => {
               duration={0.2}
             />
           </div>
+          <br className="hidden md:block"></br>
           <span className="text-4xl md:text-7xl">for Modern Teams</span>
         </h2>
         <p className="max-w-2xl text-base md:text-xl mt-6 text-muted-foreground">
