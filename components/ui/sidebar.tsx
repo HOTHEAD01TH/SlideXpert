@@ -125,7 +125,9 @@ export const SidebarLink = ({
       )}
       {...props}
     >
-      {link.icon}
+      <div className={cn("transition-all flex items-center justify-center", open ? "w-5 h-5" : "w-8 h-8")}>
+        {link.icon}
+      </div>
       <motion.span
         initial={{ opacity: 0, width: 0 }}
         animate={{

@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { PromptInput } from '@/components/ui/prompt-input'
+import { cn } from '@/lib/utils'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -23,22 +24,22 @@ export default function DashboardPage() {
     {
       label: "Generate PPTX",
       href: "/dashboard/generate",
-      icon: <IconBrain className="w-5 h-5 text-neutral-700 dark:text-neutral-200" />,
+      icon: <IconBrain className="w-6 h-6 text-neutral-700 dark:text-neutral-200" />,
     },
     {
       label: "My Presentations",
       href: "/dashboard/presentations",
-      icon: <IconFileText className="w-5 h-5 text-neutral-700 dark:text-neutral-200" />,
+      icon: <IconFileText className="w-6 h-6 text-neutral-700 dark:text-neutral-200" />,
     },
     {
       label: "History",
       href: "/dashboard/history",
-      icon: <IconHistory className="w-5 h-5 text-neutral-700 dark:text-neutral-200" />,
+      icon: <IconHistory className="w-6 h-6 text-neutral-700 dark:text-neutral-200" />,
     },
     {
       label: "Settings",
       href: "/dashboard/settings",
-      icon: <IconSettings className="w-5 h-5 text-neutral-700 dark:text-neutral-200" />,
+      icon: <IconSettings className="w-6 h-6 text-neutral-700 dark:text-neutral-200" />,
     },
   ]
 
@@ -97,7 +98,9 @@ export default function DashboardPage() {
           <div className="flex flex-col h-full justify-between">
             <div className="space-y-4">
               <div className="px-2 py-4 flex items-center gap-2">
-                <IconPresentationAnalytics className="w-6 h-6 text-neutral-200" />
+                <div className={cn("transition-all flex items-center justify-center", sidebarOpen ? "w-5 h-5" : "w-8 h-8")}>
+                  <IconPresentationAnalytics className="w-30 h-30 text-neutral-200" />
+                </div>
                 <motion.span
                   initial={{ opacity: 0, width: 0 }}
                   animate={{

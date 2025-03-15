@@ -12,52 +12,31 @@ function CallbackContent() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // First, try to get the session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
+        if (sessionError) {
+          console.error("Session error:", sessionError)
+          router.push('/signin')
+          return
+        }
+
         if (session) {
           console.log("Session found, redirecting to dashboard")
-          router.push('/dashboard')
+          router.replace('/dashboard')
           return
         }
 
-        // If no session, check for hash parameters (email verification)
-        const hash = window.location.hash
-        if (hash) {
-          const params = new URLSearchParams(hash.substring(1))
-          const accessToken = params.get('access_token')
-          
-          if (accessToken) {
-            const { data: { user }, error } = await supabase.auth.getUser(accessToken)
-            if (user) {
-              console.log("Email verified, redirecting to dashboard")
-              router.push('/dashboard')
-              return
-            }
-          }
-        }
-
-        // If no session and no hash, check for error parameters
-        const error = searchParams.get('error')
-        const error_description = searchParams.get('error_description')
-        
-        if (error) {
-          console.error("Auth error:", error, error_description)
-          router.push(`/signin?error=${encodeURIComponent(error_description || 'Authentication failed')}`)
-          return
-        }
-
-        // If nothing works, redirect to signin
-        console.log("No session or verification found, redirecting to signin")
-        router.push('/signin')
+        // If no session and no error, redirect to signin
+        console.log("No session found, redirecting to signin")
+        router.replace('/signin')
       } catch (error) {
         console.error("Callback error:", error)
-        router.push('/signin')
+        router.replace('/signin')
       }
     }
 
     handleCallback()
-  }, [router, searchParams])
+  }, [router])
 
   return (
     <div className="flex min-h-screen items-center justify-center">

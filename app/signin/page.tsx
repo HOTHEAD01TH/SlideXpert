@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input"
 import { login, signInWithGoogle } from "@/app/actions/auth"
 import { FcGoogle } from "react-icons/fc"
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 
 export default function SignInPage() {
   const router = useRouter()
@@ -17,19 +19,32 @@ export default function SignInPage() {
     setError('')
     setLoading(true)
 
-    const formData = new FormData(e.currentTarget)
-    const email = formData.get('email') as string
-    const password = formData.get('password') as string
+    try {
+      const formData = new FormData(e.currentTarget)
+      const email = formData.get('email') as string
+      const password = formData.get('password') as string
 
-    const result = await login({ email, password })
-    
-    if (!result.success && result.error) {
-      setError(result.error.message)
-    } else {
-      router.push('/dashboard')
+      // Sign in with Supabase directly
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
+
+      if (signInError) {
+        setError(signInError.message)
+        return
+      }
+
+      if (data?.session) {
+        router.replace('/dashboard')
+      } else {
+        setError('Failed to establish session')
+      }
+    } catch (err) {
+      setError('An unexpected error occurred')
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   const handleGoogleSignIn = async () => {
@@ -114,6 +129,12 @@ export default function SignInPage() {
             {loading ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>
+        <p className="text-center text-sm text-muted-foreground">
+          Dont have an account?{' '}
+          <Link href="/signup" className="font-medium text-primary hover:underline">
+            Sign up
+          </Link>
+        </p>
       </div>
     </div>
   )
