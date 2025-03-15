@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useEffect, useState, useRef, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { IconLoader2 } from '@tabler/icons-react'
 import { SlidePreview } from '@/components/ui/slide-preview'
@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase'
 import pptxgen from 'pptxgenjs'
 import type { Presentation, Slide } from '@/types/slides'
 
-export default function GeneratePage() {
+function GenerateContent() {
   const searchParams = useSearchParams()
   const [prompt, setPrompt] = useState(searchParams.get('prompt') || '')
   const [slides, setSlides] = useState<Slide[]>([])
@@ -533,5 +533,19 @@ export default function GeneratePage() {
         setCurrentSlide={setCurrentSlide}
       />
     </div>
+  )
+}
+
+export default function GeneratePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold">Loading...</h2>
+        </div>
+      </div>
+    }>
+      <GenerateContent />
+    </Suspense>
   )
 } 
