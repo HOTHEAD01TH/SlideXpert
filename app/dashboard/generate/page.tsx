@@ -68,151 +68,182 @@ function GenerateContent() {
         console.error('❌ No authenticated user found');
         throw new Error('You must be logged in to generate presentations');
       }
-      console.log('👤 Authenticated as user:', user.id);
 
       console.log('🚀 Starting slide generation for prompt:', prompt);
       setError(null);
       setLoading(true);
       setImagesLoading(true);
 
-      const textResponse = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          prompt,
-          checkExisting: false
-        })
-      });
-      
-      const textData = await textResponse.json();
-      
-      if (!textResponse.ok) {
-        if (textResponse.status === 429) {
-          throw new Error('Please wait a moment before generating another presentation.');
-        }
-        throw new Error(textData.error || 'Failed to generate presentation');
-      }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
-      if (!textData.slides || !Array.isArray(textData.slides) || textData.slides.length === 0) {
-        throw new Error('Invalid response from Gemini API. Please try again.');
-      }
-      
-      const slidesWithImages = [...textData.slides];
-      const imagePrompts = slidesWithImages.map(slide => slide.imagePrompt);
-      setSlides(slidesWithImages);
-      setLoading(false);
-      
-      // Save initial history
-      if (user) {
-        console.log('👤 Current user:', user.id);
-        console.log('📝 Preparing to save generation history...');
-        const historyEntry = {
-          user_id: user.id,
-          user_prompt: prompt,
-          gemini_response: JSON.stringify(textData.slides, null, 2),
-          image_prompts: imagePrompts
-        };
+      try {
+        const textResponse = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            prompt,
+            checkExisting: false
+          }),
+          signal: controller.signal
+        });
 
-        console.log('📊 History entry data:', historyEntry);
-        const { data: historyData, error: historyError } = await supabase
-          .from('generation_history')
-          .insert(historyEntry)
-          .select()
-          .single();
-
-        if (historyError) {
-          console.error('❌ Error saving generation history:', historyError);
-          console.error('Error details:', {
-            code: historyError.code,
-            message: historyError.message,
-            details: historyError.details
-          });
-        } else {
-          console.log('✅ Generation history saved successfully, ID:', historyData.id);
-        }
-      }
-      
-      // Generate images first
-      if (!cancelRef.current && textData.slides.length > 0) {
-        console.log('🎨 Starting image generation...');
-        for (let i = 0; i < slidesWithImages.length; i++) {
-          if (cancelRef.current) break;
-
-          const slide = slidesWithImages[i];
-          setCurrentImageIndex(i);
-          
-          if (slide.imagePrompt) {
+        clearTimeout(timeoutId);
+        
+        let errorMessage = 'Failed to generate presentation';
+        
+        if (!textResponse.ok) {
+          if (textResponse.status === 504) {
+            errorMessage = 'The request timed out. Please try again.';
+          } else if (textResponse.status === 429) {
+            errorMessage = 'Please wait a moment before generating another presentation.';
+          } else {
             try {
-              const imageResponse = await fetch('/api/generate-image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: slide.imagePrompt })
-              });
-              
-              const imageData = await imageResponse.json();
-              
-              if (imageData.imageUrl) {
-                slidesWithImages[i] = {
-                  ...slide,
-                  imageUrl: imageData.imageUrl
-                };
-                setSlides([...slidesWithImages]);
+              const errorData = await textResponse.json();
+              errorMessage = errorData.error || errorMessage;
+            } catch {
+              const errorText = await textResponse.text();
+              errorMessage = errorText || errorMessage;
+            }
+          }
+          throw new Error(errorMessage);
+        }
+
+        let textData;
+        const responseText = await textResponse.text();
+        
+        try {
+          textData = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('Failed to parse response:', responseText);
+          throw new Error('Invalid response from server. Please try again.');
+        }
+
+        if (!textData.slides || !Array.isArray(textData.slides)) {
+          throw new Error('Invalid response format. Please try again.');
+        }
+
+        // Continue with the rest of your existing code
+        setSlides(textData.slides);
+        const slidesWithImages = [...textData.slides];
+        const imagePrompts = slidesWithImages.map(slide => slide.imagePrompt);
+        setLoading(false);
+        
+        // Save initial history
+        if (user) {
+          console.log('👤 Current user:', user.id);
+          console.log('📝 Preparing to save generation history...');
+          const historyEntry = {
+            user_id: user.id,
+            user_prompt: prompt,
+            gemini_response: JSON.stringify(textData.slides, null, 2),
+            image_prompts: imagePrompts
+          };
+
+          console.log('📊 History entry data:', historyEntry);
+          const { data: historyData, error: historyError } = await supabase
+            .from('generation_history')
+            .insert(historyEntry)
+            .select()
+            .single();
+
+          if (historyError) {
+            console.error('❌ Error saving generation history:', historyError);
+            console.error('Error details:', {
+              code: historyError.code,
+              message: historyError.message,
+              details: historyError.details
+            });
+          } else {
+            console.log('✅ Generation history saved successfully, ID:', historyData.id);
+          }
+        }
+        
+        // Generate images first
+        if (!cancelRef.current && textData.slides.length > 0) {
+          console.log('🎨 Starting image generation...');
+          for (let i = 0; i < slidesWithImages.length; i++) {
+            if (cancelRef.current) break;
+
+            const slide = slidesWithImages[i];
+            setCurrentImageIndex(i);
+            
+            if (slide.imagePrompt) {
+              try {
+                const imageResponse = await fetch('/api/generate-image', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ prompt: slide.imagePrompt })
+                });
+                
+                const imageData = await imageResponse.json();
+                
+                if (imageData.imageUrl) {
+                  slidesWithImages[i] = {
+                    ...slide,
+                    imageUrl: imageData.imageUrl
+                  };
+                  setSlides([...slidesWithImages]);
+                }
+                
+                if (!imageData.error && i < slidesWithImages.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 10000));
+                }
+              } catch (imageError) {
+                console.error('Error generating image:', imageError);
               }
-              
-              if (!imageData.error && i < slidesWithImages.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 10000));
-              }
-            } catch (imageError) {
-              console.error('Error generating image:', imageError);
             }
           }
         }
-      }
-      
-      // Now save the presentation with images
-      if (user) {
-        console.log('💾 Preparing to save presentation...');
-        const presentation = {
-          user_id: user.id,
-          prompt: prompt || '',
-          slides: slidesWithImages,
-          created_at: new Date().toISOString()
-        };
         
-        console.log('📊 Presentation data:', {
-          user_id: presentation.user_id,
-          prompt: presentation.prompt,
-          slides_count: presentation.slides.length
-        });
-
-        const { data, error: presentationError } = await supabase
-          .from('presentations')
-          .insert(presentation)
-          .select()
-          .single();
-
-        if (presentationError) {
-          console.error('❌ Error saving presentation:', presentationError);
-          console.error('Error details:', {
-            code: presentationError.code,
-            message: presentationError.message,
-            details: presentationError.details
+        // Now save the presentation with images
+        if (user) {
+          console.log('💾 Preparing to save presentation...');
+          const presentation = {
+            user_id: user.id,
+            prompt: prompt || '',
+            slides: slidesWithImages,
+            created_at: new Date().toISOString()
+          };
+          
+          console.log('📊 Presentation data:', {
+            user_id: presentation.user_id,
+            prompt: presentation.prompt,
+            slides_count: presentation.slides.length
           });
-        } else {
-          console.log('✅ Presentation saved successfully, ID:', data.id);
+
+          const { data, error: presentationError } = await supabase
+            .from('presentations')
+            .insert(presentation)
+            .select()
+            .single();
+
+          if (presentationError) {
+            console.error('❌ Error saving presentation:', presentationError);
+            console.error('Error details:', {
+              code: presentationError.code,
+              message: presentationError.message,
+              details: presentationError.details
+            });
+          } else {
+            console.log('✅ Presentation saved successfully, ID:', data.id);
+          }
         }
+        
+        setImagesLoading(false);
+        setCurrentImageIndex(-1);
+        console.log('🎉 Generation process completed successfully');
+      } catch (error: any) {
+        console.error('❌ Error in generation process:', error);
+        setError(error.message || 'An unexpected error occurred');
+      } finally {
+        setIsGenerating(false);
+        setLoading(false);
+        setImagesLoading(false);
       }
-      
-      setImagesLoading(false);
-      setCurrentImageIndex(-1);
-      console.log('🎉 Generation process completed successfully');
     } catch (error: any) {
       console.error('❌ Error in generation process:', error);
       setError(error.message || 'An unexpected error occurred');
-    } finally {
-      setIsGenerating(false);
-      setLoading(false);
-      setImagesLoading(false);
     }
   };
 
