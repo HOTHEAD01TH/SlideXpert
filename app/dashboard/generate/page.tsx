@@ -8,6 +8,8 @@ import { SlidePreview } from '@/components/ui/slide-preview'
 import { supabase } from '@/lib/supabase'
 import pptxgen from 'pptxgenjs'
 import type { Presentation, Slide } from '@/types/slides'
+import { Button } from '@/components/ui/button'
+import { IconPhoto } from '@tabler/icons-react'
 
 function GenerateContent() {
   const searchParams = useSearchParams()
@@ -26,6 +28,7 @@ function GenerateContent() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  const [isGeneratingImages, setIsGeneratingImages] = useState(false)
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -189,100 +192,10 @@ function GenerateContent() {
           }
         }
         
-        // Generate images first
-        if (!cancelRef.current && textData.slides.length > 0) {
-          console.log('🎨 Starting image generation...');
-          
-          // Process one slide at a time to avoid overloading the API
-          for (let i = 0; i < slidesWithImages.length; i++) {
-            if (cancelRef.current) break;
-
-            const slide = slidesWithImages[i];
-            setCurrentImageIndex(i);
-            
-            if (slide.imagePrompt) {
-              try {
-                console.log(`Generating image for slide ${i + 1}: ${slide.imagePrompt.substring(0, 50)}...`);
-                
-                // Remove the client-side timeout and rely on server timeout
-                const imageResponse = await fetch('/api/generate-image', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ prompt: slide.imagePrompt })
-                });
-                
-                if (!imageResponse.ok) {
-                  console.warn(`Image generation failed for slide ${i + 1}, using placeholder`);
-                  slidesWithImages[i] = {
-                    ...slide,
-                    imageUrl: '/placeholder.png'
-                  };
-                } else {
-                  const imageData = await imageResponse.json();
-                  if (imageData.imageUrl) {
-                    slidesWithImages[i] = {
-                      ...slide,
-                      imageUrl: imageData.imageUrl
-                    };
-                    console.log(`✅ Successfully generated image for slide ${i + 1}`);
-                  }
-                }
-              } catch (imageError) {
-                console.error(`Error generating image for slide ${i + 1}:`, imageError);
-                slidesWithImages[i] = {
-                  ...slide,
-                  imageUrl: '/placeholder.png'
-                };
-              }
-              
-              setSlides([...slidesWithImages]);
-              
-              // Wait between requests to avoid rate limiting
-              if (i < slidesWithImages.length - 1) {
-                console.log('Waiting before generating next image...');
-                await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds between requests
-              }
-            }
-          }
-        }
-        
-        // Now save the presentation with images
-        if (user) {
-          console.log('💾 Preparing to save presentation...');
-          const presentation = {
-            user_id: user.id,
-            prompt: prompt || '',
-            slides: slidesWithImages,
-            created_at: new Date().toISOString()
-          };
-          
-          console.log('📊 Presentation data:', {
-            user_id: presentation.user_id,
-            prompt: presentation.prompt,
-            slides_count: presentation.slides.length
-          });
-
-          const { data, error: presentationError } = await supabase
-            .from('presentations')
-            .insert(presentation)
-            .select()
-            .single();
-
-          if (presentationError) {
-            console.error('❌ Error saving presentation:', presentationError);
-            console.error('Error details:', {
-              code: presentationError.code,
-              message: presentationError.message,
-              details: presentationError.details
-            });
-          } else {
-            console.log('✅ Presentation saved successfully, ID:', data.id);
-          }
-        }
-        
+        // Don't automatically generate images, wait for user to click button
         setImagesLoading(false);
         setCurrentImageIndex(-1);
-        console.log('🎉 Generation process completed successfully');
+        console.log('🎉 Text generation process completed successfully');
       } catch (error: any) {
         console.error('❌ Error in generation process:', error);
         const errorMsg = error.message || 'An unexpected error occurred';
@@ -330,7 +243,6 @@ function GenerateContent() {
               try {
                 console.log(`Generating image for slide ${i + 1}: ${slide.imagePrompt.substring(0, 50)}...`);
                 
-                // Remove the client-side timeout and rely on server timeout
                 const imageResponse = await fetch('/api/generate-image', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -348,9 +260,11 @@ function GenerateContent() {
                   if (imageData.imageUrl) {
                     slidesWithImages[i] = {
                       ...slide,
-                      imageUrl: imageData.imageUrl
+                      imageUrl: imageData.imageUrl,
+                      imageModel: imageData.model,
+                      imageSimplified: imageData.simplified
                     };
-                    console.log(`✅ Successfully generated image for slide ${i + 1}`);
+                    console.log(`✅ Successfully generated image for slide ${i + 1}${imageData.model ? ` using ${imageData.model}` : ''}`);
                   }
                 }
               } catch (imageError) {
@@ -364,9 +278,9 @@ function GenerateContent() {
               setSlides([...slidesWithImages]);
               
               // Wait between requests to avoid rate limiting
-              if (i < slidesWithImages.length - 1) {
+              if (i < slidesWithImages.length - 1 && i + 1 < slidesWithImages.filter(s => !s.imageUrl && s.imagePrompt).length) {
                 console.log('Waiting before generating next image...');
-                await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds between requests
+                await new Promise(resolve => setTimeout(resolve, 2000));
               }
             }
           }
@@ -545,6 +459,116 @@ function GenerateContent() {
     return null
   }
 
+  const generateImages = async () => {
+    if (!slides || slides.length === 0) {
+      setError("No slides to generate images for");
+      return;
+    }
+    
+    setIsGeneratingImages(true);
+    setImagesLoading(true);
+    const slidesWithImages = [...slides];
+    
+    try {
+      // Process one slide at a time to avoid overloading the API
+      for (let i = 0; i < slidesWithImages.length; i++) {
+        if (cancelRef.current) break;
+
+        const slide = slidesWithImages[i];
+        setCurrentImageIndex(i);
+        
+        if (slide.imagePrompt) {
+          try {
+            console.log(`Generating image for slide ${i + 1}: ${slide.imagePrompt.substring(0, 50)}...`);
+            
+            const imageResponse = await fetch('/api/generate-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: slide.imagePrompt })
+            });
+            
+            if (!imageResponse.ok) {
+              console.warn(`Image generation failed for slide ${i + 1}, using placeholder`);
+              slidesWithImages[i] = {
+                ...slide,
+                imageUrl: '/placeholder.png'
+              };
+            } else {
+              const imageData = await imageResponse.json();
+              if (imageData.imageUrl) {
+                slidesWithImages[i] = {
+                  ...slide,
+                  imageUrl: imageData.imageUrl,
+                  imageModel: imageData.model,
+                  imageSimplified: imageData.simplified
+                };
+                console.log(`✅ Successfully generated image for slide ${i + 1}${imageData.model ? ` using ${imageData.model}` : ''}`);
+              }
+            }
+          } catch (imageError) {
+            console.error(`Error generating image for slide ${i + 1}:`, imageError);
+            slidesWithImages[i] = {
+              ...slide,
+              imageUrl: '/placeholder.png'
+            };
+          }
+          
+          setSlides([...slidesWithImages]);
+          
+          // Wait between requests to avoid rate limiting
+          if (i < slidesWithImages.length - 1) {
+            console.log('Waiting before generating next image...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
+      }
+      
+      // Now save the presentation with images
+      if (user) {
+        console.log('💾 Preparing to save presentation...');
+        const presentation = {
+          user_id: user.id,
+          prompt: prompt || '',
+          slides: slidesWithImages,
+          created_at: new Date().toISOString()
+        };
+        
+        console.log('📊 Presentation data:', {
+          user_id: presentation.user_id,
+          prompt: presentation.prompt,
+          slides_count: presentation.slides.length
+        });
+
+        const { data, error: presentationError } = await supabase
+          .from('presentations')
+          .insert(presentation)
+          .select()
+          .single();
+
+        if (presentationError) {
+          console.error('❌ Error saving presentation:', presentationError);
+          console.error('Error details:', {
+            code: presentationError.code,
+            message: presentationError.message,
+            details: presentationError.details
+          });
+        } else {
+          console.log('✅ Presentation saved successfully, ID:', data.id);
+        }
+      }
+      
+      setImagesLoading(false);
+      setCurrentImageIndex(-1);
+      setIsGeneratingImages(false);
+      console.log('🎉 Image generation process completed successfully');
+    } catch (error: any) {
+      console.error('❌ Error in image generation process:', error);
+      setError(error.message || 'An unexpected error occurred during image generation');
+      setImagesLoading(false);
+      setIsGeneratingImages(false);
+    }
+  };
+
   if (loading || !authChecked) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
@@ -638,6 +662,15 @@ function GenerateContent() {
         currentSlide={currentSlide}
         setCurrentSlide={setCurrentSlide}
       />
+      
+      {slides.length > 0 && !isGenerating && !imagesLoading && !isGeneratingImages && (
+        <div className="mt-4 text-center">
+          <Button onClick={generateImages} className="bg-green-600 hover:bg-green-700">
+            <IconPhoto className="mr-2 h-4 w-4" />
+            Generate Images
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

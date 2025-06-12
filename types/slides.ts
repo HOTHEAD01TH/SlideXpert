@@ -3,6 +3,8 @@ export type Slide = {
   content: string
   imagePrompt?: string
   imageUrl?: string
+  imageModel?: string
+  imageSimplified?: boolean
 }
 
 export interface Presentation {

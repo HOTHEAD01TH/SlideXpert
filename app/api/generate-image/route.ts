@@ -3,96 +3,48 @@ import axios from 'axios'
 
 const HUGGING_FACE_API_KEY = process.env.HUGGING_FACE_API_KEY
 
-// Increase the timeout for the Edge runtime
-export const maxDuration = 180; // 3 minutes (maximum allowed by Vercel)
+// Use a shorter timeout to avoid Vercel timeouts
+export const maxDuration = 60; // 1 minute timeout for the Edge function
 
-async function generateImage(prompt: string, retryCount = 0) {
-  try {
-    // Log the request to help with debugging
-    console.log('Sending image generation request with prompt:', prompt);
-    
-    // Use the exact format required by Hugging Face API
-    const response = await axios({
-      method: 'post',
-      url: 'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-dev',
-      headers: {
-        'Authorization': `Bearer ${HUGGING_FACE_API_KEY}`,
-        'Content-Type': 'application/json',
-        'Accept': 'image/png'  // Critical: specify the expected response format
-      },
-      data: {
-        inputs: prompt,
-        options: {
-          wait_for_model: true  // Wait for the model to load if it's not ready
-        }
-      },
-      responseType: 'arraybuffer',
-      timeout: 150000, // 150 second timeout (2.5 minutes)
-    });
-
-    // Check if we got a valid response
-    if (response.data && response.data.byteLength > 0) {
-      const base64Image = Buffer.from(response.data).toString('base64');
-      return `data:image/png;base64,${base64Image}`; // Changed to PNG
-    } else {
-      throw new Error('Empty response from image API');
-    }
-  } catch (error: any) {
-    // Add detailed error logging
-    console.error('Hugging Face API error details:', {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      message: error.message,
-      code: error.code
-    });
-    
-    // Handle timeout errors (ECONNABORTED or 504)
-    if (error.code === 'ECONNABORTED' || error.response?.status === 504) {
-      console.log('Request timed out, using placeholder image');
-      return '/placeholder.png';
-    }
-    
-    // Special handling for common Hugging Face API errors
-    if (error.response?.status === 404) {
-      console.log('Model not found, using placeholder image');
-      return '/placeholder.png'; // Return placeholder directly
-    }
-    
-    // 503 means the model is still loading
-    if (error.response?.status === 503) {
-      if (retryCount < 1) { // Reduced retries for production
-        console.log('Model is loading, waiting and retrying...');
-        // Wait longer for model loading (5 seconds)
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        return generateImage(prompt, retryCount + 1);
-      } else {
-        console.log('Model still loading after retries, using placeholder');
-        return '/placeholder.png';
-      }
-    }
-    
-    // Add retry logic for other errors
-    if (retryCount < 1) {
-      console.log(`Retrying image generation after error (attempt ${retryCount + 1})`);
-      await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds before retry
-      return generateImage(prompt, retryCount + 1);
-    }
-    
-    // Return placeholder for any error
-    console.log('Failed to generate image after retries, using placeholder');
-    return '/placeholder.png';
-  }
+// Simple in-memory cache (will be cleared on deployment)
+type CacheEntry = {
+  imageUrl: string;
+  model: string;
+  timestamp: number;
+  simplified?: boolean;
 }
 
-// Add a fallback function to use a simpler model
-async function generateImageFallback(prompt: string) {
+// Cache with a 24-hour expiry
+const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+const imageCache = new Map<string, CacheEntry>();
+
+// Define models in order of preference (fastest/lightest first)
+const IMAGE_MODELS = [
+  {
+    name: 'stabilityai/stable-diffusion-xl-base-1.0', // Medium complexity
+    timeout: 35000, // 35 seconds
+  },
+  {
+    name: 'black-forest-labs/FLUX.1-dev', // Most complex, best quality
+    timeout: 45000, // 45 seconds
+  }
+];
+
+interface ImageResult {
+  success: boolean;
+  imageUrl: string;
+  model: string;
+  error?: string;
+  status?: number;
+}
+
+async function generateImageWithModel(prompt: string, modelConfig: typeof IMAGE_MODELS[0]): Promise<ImageResult> {
   try {
-    console.log('Trying fallback model for prompt:', prompt);
+    console.log(`Trying model ${modelConfig.name} for prompt: ${prompt}`);
     
-    // Use a simpler model as fallback
     const response = await axios({
       method: 'post',
-      url: 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
+      url: `https://api-inference.huggingface.co/models/${modelConfig.name}`,
       headers: {
         'Authorization': `Bearer ${HUGGING_FACE_API_KEY}`,
         'Content-Type': 'application/json',
@@ -101,26 +53,80 @@ async function generateImageFallback(prompt: string) {
       data: {
         inputs: prompt,
         options: {
-          wait_for_model: true
+          wait_for_model: true,
+          use_cache: true // Enable caching for faster responses
         }
       },
       responseType: 'arraybuffer',
-      timeout: 60000, // 60 second timeout for fallback
+      timeout: modelConfig.timeout
     });
 
     if (response.data && response.data.byteLength > 0) {
       const base64Image = Buffer.from(response.data).toString('base64');
-      return `data:image/png;base64,${base64Image}`;
+      return {
+        success: true,
+        imageUrl: `data:image/png;base64,${base64Image}`,
+        model: modelConfig.name
+      };
     }
-  } catch (error) {
-    console.error('Fallback model also failed:', error);
+    
+    return {
+      success: false,
+      imageUrl: '/placeholder.png',
+      error: 'Empty response from API',
+      model: modelConfig.name
+    };
+  } catch (error: any) {
+    console.error(`Error with model ${modelConfig.name}:`, {
+      status: error.response?.status,
+      message: error.message,
+      code: error.code
+    });
+    
+    return {
+      success: false,
+      imageUrl: '/placeholder.png',
+      error: error.message,
+      status: error.response?.status,
+      model: modelConfig.name
+    };
   }
-  
-  // If fallback also fails, return placeholder
-  return '/placeholder.png';
 }
 
-export const runtime = 'edge'; // Use edge runtime for better performance
+// Simplified prompt to improve success rate
+function simplifyPrompt(prompt: string): string {
+  // Remove complex descriptors and keep it short
+  let simplified = prompt
+    .replace(/highly detailed|intricate|photorealistic|cinematic|professional|high quality|4k|8k|uhd/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  // Limit to 50 characters
+  if (simplified.length > 50) {
+    simplified = simplified.substring(0, 50);
+  }
+  
+  return simplified;
+}
+
+// Clean the cache of expired entries
+function cleanCache() {
+  const now = Date.now();
+  let expiredCount = 0;
+  
+  for (const [key, entry] of imageCache.entries()) {
+    if (now - entry.timestamp > CACHE_EXPIRY) {
+      imageCache.delete(key);
+      expiredCount++;
+    }
+  }
+  
+  if (expiredCount > 0) {
+    console.log(`Cleaned ${expiredCount} expired entries from image cache`);
+  }
+}
+
+export const runtime = 'edge';
 
 export async function POST(request: Request) {
   try {
@@ -135,39 +141,112 @@ export async function POST(request: Request) {
 
     console.log('Processing image request for prompt:', prompt);
     
-    // Set a timeout for the entire request
-    const timeoutPromise = new Promise<string>(resolve => {
-      setTimeout(() => {
-        console.log('Request timeout reached, returning placeholder');
-        resolve('/placeholder.png');
-      }, 160000); // 160 second global timeout (2.6 minutes)
-    });
+    // Clean expired cache entries
+    cleanCache();
     
-    try {
-      // Try the primary model first
-      const result = await Promise.race([
-        generateImage(prompt, 0),
-        timeoutPromise
-      ]);
-      
-      // If we got a placeholder from the primary model, try the fallback
-      if (result === '/placeholder.png') {
-        console.log('Primary model failed, trying fallback model');
-        const fallbackResult = await generateImageFallback(prompt);
-        return NextResponse.json({ imageUrl: fallbackResult });
-      }
-      
-      return NextResponse.json({ imageUrl: result });
-    } catch (error) {
-      console.log('Error with primary model, trying fallback');
-      const fallbackResult = await generateImageFallback(prompt);
-      return NextResponse.json({ imageUrl: fallbackResult });
+    // Check cache first
+    if (imageCache.has(prompt)) {
+      const cachedResult = imageCache.get(prompt)!;
+      console.log(`Cache hit for prompt: "${prompt.substring(0, 30)}..."`);
+      return NextResponse.json({
+        imageUrl: cachedResult.imageUrl,
+        model: String(cachedResult.model),
+        simplified: cachedResult.simplified,
+        fromCache: true
+      });
     }
     
-  } catch (error: any) {
-    console.error('Image generation error:', error);
+    // Try with original prompt first
+    for (const model of IMAGE_MODELS) {
+      const result = await generateImageWithModel(prompt, model);
+      
+      if (result.success) {
+        console.log(`Successfully generated image using ${result.model}`);
+        
+        // Cache the result
+        imageCache.set(prompt, {
+          imageUrl: result.imageUrl,
+          model: result.model,
+          timestamp: Date.now()
+        });
+        
+        return NextResponse.json({ 
+          imageUrl: result.imageUrl,
+          model: result.model
+        });
+      }
+      
+      // If model is loading (503) or rate limited (429), move to next model
+      if (result.status === 503 || result.status === 429) {
+        console.log(`Model ${result.model} unavailable, trying next model`);
+        continue;
+      }
+    }
+    
+    // If all models failed with original prompt, try with simplified prompt
+    const simplifiedPrompt = simplifyPrompt(prompt);
+    console.log(`All models failed with original prompt. Trying simplified prompt: ${simplifiedPrompt}`);
+    
+    // Check cache for simplified prompt
+    if (imageCache.has(simplifiedPrompt)) {
+      const cachedResult = imageCache.get(simplifiedPrompt)!;
+      console.log(`Cache hit for simplified prompt: "${simplifiedPrompt}"`);
+      
+      // Cache the original prompt too
+      imageCache.set(prompt, {
+        imageUrl: cachedResult.imageUrl,
+        model: cachedResult.model,
+        timestamp: Date.now(),
+        simplified: true
+      });
+      
+      return NextResponse.json({
+        imageUrl: cachedResult.imageUrl,
+        model: String(cachedResult.model),
+        simplified: true,
+        fromCache: true
+      });
+    }
+    
+    for (const model of IMAGE_MODELS) {
+      const result = await generateImageWithModel(simplifiedPrompt, model);
+      
+      if (result.success) {
+        console.log(`Successfully generated image using ${result.model} with simplified prompt`);
+        
+        // Cache both the original and simplified prompts
+        imageCache.set(simplifiedPrompt, {
+          imageUrl: result.imageUrl,
+          model: result.model,
+          timestamp: Date.now()
+        });
+        
+        imageCache.set(prompt, {
+          imageUrl: result.imageUrl,
+          model: result.model,
+          timestamp: Date.now(),
+          simplified: true
+        });
+        
+        return NextResponse.json({ 
+          imageUrl: result.imageUrl,
+          model: result.model,
+          simplified: true
+        });
+      }
+    }
+    
+    // If all attempts failed, return placeholder
+    console.log('All image generation attempts failed, using placeholder');
     return NextResponse.json({ 
-      error: 'Failed to generate image',
+      imageUrl: '/placeholder.png',
+      error: 'Failed to generate image with all models'
+    });
+    
+  } catch (error: any) {
+    console.error('Request processing error:', error);
+    return NextResponse.json({ 
+      error: 'Failed to process request',
       imageUrl: '/placeholder.png' 
     }, { status: 500 });
   }
