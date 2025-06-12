@@ -192,6 +192,8 @@ function GenerateContent() {
         // Generate images first
         if (!cancelRef.current && textData.slides.length > 0) {
           console.log('🎨 Starting image generation...');
+          
+          // Process one slide at a time to avoid overloading the API
           for (let i = 0; i < slidesWithImages.length; i++) {
             if (cancelRef.current) break;
 
@@ -200,12 +202,20 @@ function GenerateContent() {
             
             if (slide.imagePrompt) {
               try {
-                // Only try once, no retries
+                console.log(`Generating image for slide ${i + 1}: ${slide.imagePrompt.substring(0, 50)}...`);
+                
+                // Set up a timeout for this specific request
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+                
                 const imageResponse = await fetch('/api/generate-image', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ prompt: slide.imagePrompt })
+                  body: JSON.stringify({ prompt: slide.imagePrompt }),
+                  signal: controller.signal
                 });
+                
+                clearTimeout(timeoutId);
                 
                 if (!imageResponse.ok) {
                   console.warn(`Image generation failed for slide ${i + 1}, using placeholder`);
@@ -220,10 +230,11 @@ function GenerateContent() {
                       ...slide,
                       imageUrl: imageData.imageUrl
                     };
+                    console.log(`✅ Successfully generated image for slide ${i + 1}`);
                   }
                 }
               } catch (imageError) {
-                console.error('Error generating image:', imageError);
+                console.error(`Error generating image for slide ${i + 1}:`, imageError);
                 slidesWithImages[i] = {
                   ...slide,
                   imageUrl: '/placeholder.png'
@@ -232,8 +243,10 @@ function GenerateContent() {
               
               setSlides([...slidesWithImages]);
               
+              // Wait between requests to avoid rate limiting
               if (i < slidesWithImages.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds between requests
+                console.log('Waiting before generating next image...');
+                await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds between requests
               }
             }
           }
@@ -321,11 +334,20 @@ function GenerateContent() {
             if (!slide.imageUrl && slide.imagePrompt) {
               setCurrentImageIndex(i);
               try {
+                console.log(`Generating image for slide ${i + 1}: ${slide.imagePrompt.substring(0, 50)}...`);
+                
+                // Set up a timeout for this specific request
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+                
                 const imageResponse = await fetch('/api/generate-image', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ prompt: slide.imagePrompt })
+                  body: JSON.stringify({ prompt: slide.imagePrompt }),
+                  signal: controller.signal
                 });
+                
+                clearTimeout(timeoutId);
                 
                 if (!imageResponse.ok) {
                   console.warn(`Image generation failed for slide ${i + 1}, using placeholder`);
@@ -340,21 +362,23 @@ function GenerateContent() {
                       ...slide,
                       imageUrl: imageData.imageUrl
                     };
+                    console.log(`✅ Successfully generated image for slide ${i + 1}`);
                   }
                 }
-                
-                setSlides([...slidesWithImages]);
-                
-                if (i < slidesWithImages.length - 1) {
-                  await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds between requests
-                }
               } catch (imageError) {
-                console.error('Error generating image:', imageError);
+                console.error(`Error generating image for slide ${i + 1}:`, imageError);
                 slidesWithImages[i] = {
                   ...slide,
                   imageUrl: '/placeholder.png'
                 };
-                setSlides([...slidesWithImages]);
+              }
+              
+              setSlides([...slidesWithImages]);
+              
+              // Wait between requests to avoid rate limiting
+              if (i < slidesWithImages.length - 1) {
+                console.log('Waiting before generating next image...');
+                await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds between requests
               }
             }
           }

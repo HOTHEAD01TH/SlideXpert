@@ -3,6 +3,9 @@ import axios from 'axios'
 
 const HUGGING_FACE_API_KEY = process.env.HUGGING_FACE_API_KEY
 
+// Increase the timeout for the Edge runtime
+export const maxDuration = 120; // 2 minutes
+
 async function generateImage(prompt: string, retryCount = 0) {
   try {
     // Log the request to help with debugging
@@ -21,7 +24,7 @@ async function generateImage(prompt: string, retryCount = 0) {
         inputs: prompt
       },
       responseType: 'arraybuffer',
-      timeout: 60000, // 60 second timeout
+      timeout: 90000, // 90 second timeout - increased from 60s
     });
 
     // Check if we got a valid response
@@ -40,6 +43,12 @@ async function generateImage(prompt: string, retryCount = 0) {
       code: error.code
     });
     
+    // Handle timeout errors (ECONNABORTED or 504)
+    if (error.code === 'ECONNABORTED' || error.response?.status === 504) {
+      console.log('Request timed out, using placeholder image');
+      return '/placeholder.png';
+    }
+    
     // Special handling for common Hugging Face API errors
     if (error.response?.status === 404) {
       console.log('Model not found, using placeholder image');
@@ -48,7 +57,7 @@ async function generateImage(prompt: string, retryCount = 0) {
     
     // 503 means the model is still loading
     if (error.response?.status === 503) {
-      if (retryCount < 2) {
+      if (retryCount < 1) { // Reduced retries for production
         console.log('Model is loading, waiting and retrying...');
         // Wait longer for model loading (5 seconds)
         await new Promise(resolve => setTimeout(resolve, 5000));
@@ -72,6 +81,8 @@ async function generateImage(prompt: string, retryCount = 0) {
   }
 }
 
+export const runtime = 'edge'; // Use edge runtime for better performance
+
 export async function POST(request: Request) {
   try {
     const { prompt } = await request.json();
@@ -86,19 +97,23 @@ export async function POST(request: Request) {
     // Don't enhance the prompt automatically
     console.log('Processing image request for prompt:', prompt);
     
-    const result = await generateImage(prompt);
+    // Set a timeout for the entire request
+    const timeoutPromise = new Promise<string>(resolve => {
+      setTimeout(() => {
+        console.log('Request timeout reached, returning placeholder');
+        resolve('/placeholder.png');
+      }, 100000); // 100 second global timeout
+    });
+    
+    // Race between the image generation and the timeout
+    const result = await Promise.race([
+      generateImage(prompt),
+      timeoutPromise
+    ]);
     
     // If result is a string (direct image URL), return it
-    if (typeof result === 'string') {
-      return NextResponse.json({ imageUrl: result });
-    }
-    
-    // If result is a NextResponse (error case), return it directly
-    if ('status' in result && 'body' in result) {
-      return result;
-    }
-    
     return NextResponse.json({ imageUrl: result });
+    
   } catch (error: any) {
     console.error('Image generation error:', error);
     return NextResponse.json({ 
