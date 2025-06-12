@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
-import { rateLimit } from '@/lib/rate-limit'
 import { supabase } from '@/lib/supabase'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
@@ -9,14 +8,9 @@ if (!GEMINI_API_KEY) {
   console.error('GEMINI_API_KEY is missing')
 }
 
-const limiter = rateLimit({
-  interval: 60 * 1000, // 1 minute
-  uniqueTokenPerInterval: 50, // Increase from 10 to 50
-})
-
 const model = new GoogleGenerativeAI(GEMINI_API_KEY!)
   .getGenerativeModel({ 
-    model: "gemini-1.5-pro",
+    model: "gemini-2.0-flash",
     safetySettings: [
       {
         category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -96,8 +90,14 @@ The response must be valid JSON with exactly 5 slides.`
       console.error('Problematic text:', cleanedText);
       throw new Error('Failed to parse Gemini response');
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Gemini API error:', error);
+    
+    // Check for quota exceeded errors
+    if (error.status === 429 || (error.message && error.message.includes('quota'))) {
+      throw new Error('The AI service is currently busy. Please try again later.');
+    }
+    
     throw error;
   }
 }
@@ -107,8 +107,6 @@ export const maxDuration = 300 // 5 minutes timeout
 
 export async function POST(request: Request) {
   try {
-    await limiter.check(50) // Increase rate limit tokens
-
     const { prompt, checkExisting = true } = await request.json()
     
     // Add timeout to Gemini API call

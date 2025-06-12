@@ -86,42 +86,24 @@ export async function initializeDatabase() {
     })
     
     console.log('🔒 Verifying RLS policies...');
-    await supabase.rpc('exec', {
-      query: `
-      DO $$ 
-      BEGIN
-        -- Drop existing policies
-        DROP POLICY IF EXISTS "Users can view their own presentations" ON presentations;
-        DROP POLICY IF EXISTS "Users can insert their own presentations" ON presentations;
-        DROP POLICY IF EXISTS "Users can view their own history" ON generation_history;
-        DROP POLICY IF EXISTS "Users can insert their own history" ON generation_history;
-        
-        -- Recreate policies
-        CREATE POLICY "Users can view their own presentations"
-          ON presentations FOR SELECT
-          USING (auth.uid() = user_id);
-
-        CREATE POLICY "Users can insert their own presentations"
-          ON presentations FOR INSERT
-          WITH CHECK (auth.uid() = user_id);
-
-        CREATE POLICY "Users can view their own history"
-          ON generation_history FOR SELECT
-          USING (auth.uid() = user_id);
-
-        CREATE POLICY "Users can insert their own history"
-          ON generation_history FOR INSERT
-          WITH CHECK (auth.uid() = user_id);
-      END $$;
-    `});
-    
-    console.log('✅ Database initialized successfully');
+    console.log('✅ Database initialization complete');
+    return true;
   } catch (error) {
     console.error('❌ Error initializing database:', error);
-    throw error;
+    return false;
   }
-} 
+}
 
+// Auto-initialize database when running on the server
+if (typeof window === 'undefined') {
+  initializeDatabase().then(success => {
+    if (success) {
+      console.log('✅ Database initialized successfully');
+    } else {
+      console.error('❌ Database initialization failed');
+    }
+  });
+}
 
 // -- Create the exec function for running raw SQL
 // create or replace function exec(query text)

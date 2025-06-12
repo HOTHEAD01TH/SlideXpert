@@ -57,6 +57,30 @@ function GenerateContent() {
     }
   }, [prompt]);
 
+  // Modify the useEffect for prompt param to prevent auto-generation
+  useEffect(() => {
+    const promptParam = searchParams.get('prompt');
+    if (promptParam && !loading && !hasGenerated && user) {
+      setPrompt(promptParam);
+      
+      // Don't auto-generate on page load
+      if (searchParams.get('generate') === 'true') {
+        loadExistingPresentation(promptParam).then(exists => {
+          if (!exists) {
+            setHasGenerated(true); // Mark as generated
+            generateSlides();
+          } else {
+            setHasGenerated(true); // Mark as generated even if we found existing
+          }
+        });
+      } else {
+        // Just set the prompt without generating
+        setHasGenerated(false);
+        setLoading(false);
+      }
+    }
+  }, [searchParams, loading, user, hasGenerated]);
+
   const generateSlides = async () => {
     if (isGenerating) {
       console.log('🚫 Generation already in progress');
@@ -97,11 +121,16 @@ function GenerateContent() {
           if (textResponse.status === 504) {
             errorMessage = 'The request timed out. Please try again.';
           } else if (textResponse.status === 429) {
-            errorMessage = 'Please wait a moment before generating another presentation.';
+            errorMessage = 'Rate limit exceeded. Please try again later.';
           } else {
             try {
               const errorData = await textResponse.json();
               errorMessage = errorData.error || errorMessage;
+              
+              // Handle Gemini API quota errors
+              if (errorMessage.includes('Gemini API quota')) {
+                errorMessage = 'The AI service is currently busy. Please try again later.';
+              }
             } catch {
               const errorText = await textResponse.text();
               errorMessage = errorText || errorMessage;
@@ -170,74 +199,41 @@ function GenerateContent() {
             setCurrentImageIndex(i);
             
             if (slide.imagePrompt) {
-              let retryCount = 0;
-              const maxRetries = 1;
-
-              while (retryCount <= maxRetries) {
-                try {
-                  const imageResponse = await fetch('/api/generate-image', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                      prompt: slide.imagePrompt,
-                      retryCount
-                    })
-                  });
-                  
-                  if (!imageResponse.ok) {
-                    if (imageResponse.status === 504) {
-                      console.warn('Image generation timed out, using placeholder');
-                      slidesWithImages[i] = {
-                        ...slide,
-                        imageUrl: '/placeholder.png'
-                      };
-                      break;
-                    } else {
-                      const errorData = await imageResponse.json();
-                      console.error('Image generation error:', errorData.error);
-                      
-                      if (retryCount < maxRetries) {
-                        console.log(`Retrying image generation for slide ${i + 1} (attempt ${retryCount + 1})`);
-                        retryCount++;
-                        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
-                        continue;
-                      }
-                      
-                      slidesWithImages[i] = {
-                        ...slide,
-                        imageUrl: '/placeholder.png'
-                      };
-                    }
-                  } else {
-                    const imageData = await imageResponse.json();
-                    if (imageData.imageUrl) {
-                      slidesWithImages[i] = {
-                        ...slide,
-                        imageUrl: imageData.imageUrl
-                      };
-                    }
-                    break; // Success, exit retry loop
-                  }
-                } catch (imageError) {
-                  console.error('Error generating image:', imageError);
-                  if (retryCount < maxRetries) {
-                    console.log(`Retrying image generation for slide ${i + 1} (attempt ${retryCount + 1})`);
-                    retryCount++;
-                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
-                    continue;
-                  }
+              try {
+                // Only try once, no retries
+                const imageResponse = await fetch('/api/generate-image', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ prompt: slide.imagePrompt })
+                });
+                
+                if (!imageResponse.ok) {
+                  console.warn(`Image generation failed for slide ${i + 1}, using placeholder`);
                   slidesWithImages[i] = {
                     ...slide,
                     imageUrl: '/placeholder.png'
                   };
-                  break;
+                } else {
+                  const imageData = await imageResponse.json();
+                  if (imageData.imageUrl) {
+                    slidesWithImages[i] = {
+                      ...slide,
+                      imageUrl: imageData.imageUrl
+                    };
+                  }
                 }
+              } catch (imageError) {
+                console.error('Error generating image:', imageError);
+                slidesWithImages[i] = {
+                  ...slide,
+                  imageUrl: '/placeholder.png'
+                };
               }
               
               setSlides([...slidesWithImages]);
               
               if (i < slidesWithImages.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 10000));
+                await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds between requests
               }
             }
           }
@@ -282,7 +278,9 @@ function GenerateContent() {
         console.log('🎉 Generation process completed successfully');
       } catch (error: any) {
         console.error('❌ Error in generation process:', error);
-        setError(error.message || 'An unexpected error occurred');
+        const errorMsg = error.message || 'An unexpected error occurred';
+        
+        setError(errorMsg);
       } finally {
         setIsGenerating(false);
         setLoading(false);
@@ -290,7 +288,9 @@ function GenerateContent() {
       }
     } catch (error: any) {
       console.error('❌ Error in generation process:', error);
-      setError(error.message || 'An unexpected error occurred');
+      const errorMsg = error.message || 'An unexpected error occurred';
+      
+      setError(errorMsg);
     }
   };
 
@@ -328,20 +328,11 @@ function GenerateContent() {
                 });
                 
                 if (!imageResponse.ok) {
-                  if (imageResponse.status === 504) {
-                    console.warn('Image generation timed out, using placeholder');
-                    slidesWithImages[i] = {
-                      ...slide,
-                      imageUrl: '/placeholder.png'
-                    };
-                  } else {
-                    const errorData = await imageResponse.json();
-                    console.error('Image generation error:', errorData.error);
-                    slidesWithImages[i] = {
-                      ...slide,
-                      imageUrl: '/placeholder.png'
-                    };
-                  }
+                  console.warn(`Image generation failed for slide ${i + 1}, using placeholder`);
+                  slidesWithImages[i] = {
+                    ...slide,
+                    imageUrl: '/placeholder.png'
+                  };
                 } else {
                   const imageData = await imageResponse.json();
                   if (imageData.imageUrl) {
@@ -355,7 +346,7 @@ function GenerateContent() {
                 setSlides([...slidesWithImages]);
                 
                 if (i < slidesWithImages.length - 1) {
-                  await new Promise(resolve => setTimeout(resolve, 10000));
+                  await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds between requests
                 }
               } catch (imageError) {
                 console.error('Error generating image:', imageError);
@@ -395,22 +386,6 @@ function GenerateContent() {
       return false;
     }
   };
-
-  // Modify the useEffect for prompt
-  useEffect(() => {
-    const promptParam = searchParams.get('prompt');
-    if (promptParam && !loading && !hasGenerated && user) {
-      setPrompt(promptParam);
-      loadExistingPresentation(promptParam).then(exists => {
-        if (!exists) {
-          setHasGenerated(true); // Mark as generated
-          generateSlides();
-        } else {
-          setHasGenerated(true); // Mark as generated even if we found existing
-        }
-      });
-    }
-  }, [searchParams, loading, user, hasGenerated]); // Add hasGenerated to dependencies
 
   // Reset hasGenerated when prompt changes
   useEffect(() => {
@@ -578,7 +553,9 @@ function GenerateContent() {
             setError(null);
             // Add a small delay before retrying
             setTimeout(() => {
-              if (prompt) generateSlides();
+              if (prompt && !error.includes("Rate limit")) {
+                generateSlides();
+              }
             }, 1000);
           }}
           className="mt-4 bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-md transition-colors"
@@ -587,6 +564,23 @@ function GenerateContent() {
         </button>
       </div>
     )
+  }
+
+  if (prompt && !isGenerating && !loading && slides.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="mb-6 text-center">
+          <h2 className="text-2xl font-bold mb-2">Ready to generate your presentation</h2>
+          <p className="text-neutral-400">Topic: {prompt}</p>
+        </div>
+        <button 
+          onClick={generateSlides}
+          className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-3 rounded-md transition-colors text-lg"
+        >
+          Generate Presentation
+        </button>
+      </div>
+    );
   }
 
   return (
