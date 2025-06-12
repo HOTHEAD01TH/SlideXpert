@@ -204,18 +204,12 @@ function GenerateContent() {
               try {
                 console.log(`Generating image for slide ${i + 1}: ${slide.imagePrompt.substring(0, 50)}...`);
                 
-                // Set up a timeout for this specific request
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-                
+                // Remove the client-side timeout and rely on server timeout
                 const imageResponse = await fetch('/api/generate-image', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ prompt: slide.imagePrompt }),
-                  signal: controller.signal
+                  body: JSON.stringify({ prompt: slide.imagePrompt })
                 });
-                
-                clearTimeout(timeoutId);
                 
                 if (!imageResponse.ok) {
                   console.warn(`Image generation failed for slide ${i + 1}, using placeholder`);
@@ -336,18 +330,12 @@ function GenerateContent() {
               try {
                 console.log(`Generating image for slide ${i + 1}: ${slide.imagePrompt.substring(0, 50)}...`);
                 
-                // Set up a timeout for this specific request
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-                
+                // Remove the client-side timeout and rely on server timeout
                 const imageResponse = await fetch('/api/generate-image', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ prompt: slide.imagePrompt }),
-                  signal: controller.signal
+                  body: JSON.stringify({ prompt: slide.imagePrompt })
                 });
-                
-                clearTimeout(timeoutId);
                 
                 if (!imageResponse.ok) {
                   console.warn(`Image generation failed for slide ${i + 1}, using placeholder`);

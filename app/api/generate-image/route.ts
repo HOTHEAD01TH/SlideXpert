@@ -4,7 +4,7 @@ import axios from 'axios'
 const HUGGING_FACE_API_KEY = process.env.HUGGING_FACE_API_KEY
 
 // Increase the timeout for the Edge runtime
-export const maxDuration = 120; // 2 minutes
+export const maxDuration = 180; // 3 minutes (maximum allowed by Vercel)
 
 async function generateImage(prompt: string, retryCount = 0) {
   try {
@@ -14,17 +14,20 @@ async function generateImage(prompt: string, retryCount = 0) {
     // Use the exact format required by Hugging Face API
     const response = await axios({
       method: 'post',
-      url: 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
+      url: 'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-dev',
       headers: {
         'Authorization': `Bearer ${HUGGING_FACE_API_KEY}`,
         'Content-Type': 'application/json',
         'Accept': 'image/png'  // Critical: specify the expected response format
       },
       data: {
-        inputs: prompt
+        inputs: prompt,
+        options: {
+          wait_for_model: true  // Wait for the model to load if it's not ready
+        }
       },
       responseType: 'arraybuffer',
-      timeout: 90000, // 90 second timeout - increased from 60s
+      timeout: 150000, // 150 second timeout (2.5 minutes)
     });
 
     // Check if we got a valid response
@@ -81,6 +84,42 @@ async function generateImage(prompt: string, retryCount = 0) {
   }
 }
 
+// Add a fallback function to use a simpler model
+async function generateImageFallback(prompt: string) {
+  try {
+    console.log('Trying fallback model for prompt:', prompt);
+    
+    // Use a simpler model as fallback
+    const response = await axios({
+      method: 'post',
+      url: 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
+      headers: {
+        'Authorization': `Bearer ${HUGGING_FACE_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Accept': 'image/png'
+      },
+      data: {
+        inputs: prompt,
+        options: {
+          wait_for_model: true
+        }
+      },
+      responseType: 'arraybuffer',
+      timeout: 60000, // 60 second timeout for fallback
+    });
+
+    if (response.data && response.data.byteLength > 0) {
+      const base64Image = Buffer.from(response.data).toString('base64');
+      return `data:image/png;base64,${base64Image}`;
+    }
+  } catch (error) {
+    console.error('Fallback model also failed:', error);
+  }
+  
+  // If fallback also fails, return placeholder
+  return '/placeholder.png';
+}
+
 export const runtime = 'edge'; // Use edge runtime for better performance
 
 export async function POST(request: Request) {
@@ -94,7 +133,6 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // Don't enhance the prompt automatically
     console.log('Processing image request for prompt:', prompt);
     
     // Set a timeout for the entire request
@@ -102,17 +140,29 @@ export async function POST(request: Request) {
       setTimeout(() => {
         console.log('Request timeout reached, returning placeholder');
         resolve('/placeholder.png');
-      }, 100000); // 100 second global timeout
+      }, 160000); // 160 second global timeout (2.6 minutes)
     });
     
-    // Race between the image generation and the timeout
-    const result = await Promise.race([
-      generateImage(prompt),
-      timeoutPromise
-    ]);
-    
-    // If result is a string (direct image URL), return it
-    return NextResponse.json({ imageUrl: result });
+    try {
+      // Try the primary model first
+      const result = await Promise.race([
+        generateImage(prompt, 0),
+        timeoutPromise
+      ]);
+      
+      // If we got a placeholder from the primary model, try the fallback
+      if (result === '/placeholder.png') {
+        console.log('Primary model failed, trying fallback model');
+        const fallbackResult = await generateImageFallback(prompt);
+        return NextResponse.json({ imageUrl: fallbackResult });
+      }
+      
+      return NextResponse.json({ imageUrl: result });
+    } catch (error) {
+      console.log('Error with primary model, trying fallback');
+      const fallbackResult = await generateImageFallback(prompt);
+      return NextResponse.json({ imageUrl: fallbackResult });
+    }
     
   } catch (error: any) {
     console.error('Image generation error:', error);
