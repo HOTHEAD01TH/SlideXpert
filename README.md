@@ -10,19 +10,22 @@ SlideXpert is a modern web application that leverages AI to transform text promp
 ## Features
 
 - **AI-Powered Generation**: Create professional presentations instantly using advanced AI technology
-- **Free to Use**: Get started with basic features including up to 5 slides per presentation
 - **Downloadable PPT**: Export your presentations in PowerPoint format
 - **Presentation History**: Access all your previously generated presentations
 - **Cloud Storage**: Automatically save and access presentations from any device
 - **Custom Settings**: Control slide count, style preferences, and generation parameters
+- **Google Authentication**: Easily sign in with your Google account
+- **Featured Slides**: Browse through example presentations for inspiration
+- **Demo Presentations**: Download sample presentations to see the quality
 
 ## Tech Stack
 
 - **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
-- **UI Components**: Framer Motion, Tabler Icons
+- **UI Components**: Framer Motion, Tabler Icons, Shadcn UI
 - **Backend**: Supabase
-- **Authentication**: Supabase Auth
+- **Authentication**: Next Auth with Supabase Adapter
 - **Storage**: Supabase Storage
+- **AI Integration**: Google Gemini API, Hugging Face API
 - **Presentation Generation**: PPTX Gen JS
 
 ## Getting Started
@@ -33,11 +36,7 @@ SlideXpert is a modern web application that leverages AI to transform text promp
 npm install
 ```
 
-3. Set up environment variables:
-```bash
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_key
-```
+3. Set up environment variables (see `.env.example` file)
 
 4. Run the development server:
 ```bash
@@ -53,6 +52,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 - `/lib` - Utility functions and configurations
 - `/public` - Static assets
 - `/types` - TypeScript type definitions
+- `/config` - Application configuration
 
 ## Deployment
 
