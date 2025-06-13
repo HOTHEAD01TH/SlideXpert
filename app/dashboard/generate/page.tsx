@@ -26,6 +26,7 @@ function GenerateContent() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  const effectHasRunRef = useRef(false)
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -172,21 +173,33 @@ function GenerateContent() {
             if (slide.imagePrompt) {
               let retryCount = 0;
               const maxRetries = 1;
+              let success = false;
 
-              while (retryCount <= maxRetries) {
+              while (retryCount <= maxRetries && !success) {
                 try {
+                  if (cancelRef.current) break;
+                  
+                  console.log(`Generating image for slide ${i + 1}, attempt ${retryCount + 1}`);
+                  setRetryCount(retryCount);
+                  
                   const imageResponse = await fetch('/api/generate-image', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                      prompt: slide.imagePrompt,
-                      retryCount
+                      prompt: slide.imagePrompt
                     })
                   });
                   
                   if (!imageResponse.ok) {
                     if (imageResponse.status === 504) {
                       console.warn('Image generation timed out, using placeholder');
+                      slidesWithImages[i] = {
+                        ...slide,
+                        imageUrl: '/placeholder.png'
+                      };
+                      break;
+                    } else if (imageResponse.status === 402) {
+                      console.error('API quota exceeded or invalid key');
                       slidesWithImages[i] = {
                         ...slide,
                         imageUrl: '/placeholder.png'
@@ -199,7 +212,7 @@ function GenerateContent() {
                       if (retryCount < maxRetries) {
                         console.log(`Retrying image generation for slide ${i + 1} (attempt ${retryCount + 1})`);
                         retryCount++;
-                        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+                        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds before retry
                         continue;
                       }
                       
@@ -215,15 +228,15 @@ function GenerateContent() {
                         ...slide,
                         imageUrl: imageData.imageUrl
                       };
+                      success = true;
                     }
-                    break; // Success, exit retry loop
                   }
                 } catch (imageError) {
                   console.error('Error generating image:', imageError);
                   if (retryCount < maxRetries) {
                     console.log(`Retrying image generation for slide ${i + 1} (attempt ${retryCount + 1})`);
                     retryCount++;
-                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+                    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds before retry
                     continue;
                   }
                   slidesWithImages[i] = {
@@ -236,8 +249,9 @@ function GenerateContent() {
               
               setSlides([...slidesWithImages]);
               
-              if (i < slidesWithImages.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 10000));
+              if (i < slidesWithImages.length - 1 && !cancelRef.current) {
+                // Delay between image generations to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 2000));
               }
             }
           }
@@ -334,6 +348,12 @@ function GenerateContent() {
                       ...slide,
                       imageUrl: '/placeholder.png'
                     };
+                  } else if (imageResponse.status === 402) {
+                    console.error('API quota exceeded or invalid key');
+                    slidesWithImages[i] = {
+                      ...slide,
+                      imageUrl: '/placeholder.png'
+                    };
                   } else {
                     const errorData = await imageResponse.json();
                     console.error('Image generation error:', errorData.error);
@@ -355,7 +375,8 @@ function GenerateContent() {
                 setSlides([...slidesWithImages]);
                 
                 if (i < slidesWithImages.length - 1) {
-                  await new Promise(resolve => setTimeout(resolve, 10000));
+                  // Add delay between image generations to avoid rate limiting
+                  await new Promise(resolve => setTimeout(resolve, 2000));
                 }
               } catch (imageError) {
                 console.error('Error generating image:', imageError);
@@ -399,25 +420,25 @@ function GenerateContent() {
   // Modify the useEffect for prompt
   useEffect(() => {
     const promptParam = searchParams.get('prompt');
-    if (promptParam && !loading && !hasGenerated && user) {
+    if (promptParam && !loading && user && !effectHasRunRef.current) {
+      effectHasRunRef.current = true; // Mark as run to prevent duplicate executions
       setPrompt(promptParam);
+      // Instead of auto-generating, just check if it exists
       loadExistingPresentation(promptParam).then(exists => {
-        if (!exists) {
-          setHasGenerated(true); // Mark as generated
-          generateSlides();
-        } else {
-          setHasGenerated(true); // Mark as generated even if we found existing
+        if (exists) {
+          setHasGenerated(true);
         }
+        // Don't auto-generate if it doesn't exist - wait for user confirmation
       });
     }
-  }, [searchParams, loading, user, hasGenerated]); // Add hasGenerated to dependencies
-
-  // Reset hasGenerated when prompt changes
-  useEffect(() => {
+    
+    // Cleanup function
     return () => {
+      // Reset the ref when the component unmounts
+      effectHasRunRef.current = false;
       setHasGenerated(false);
     };
-  }, [prompt]);
+  }, [searchParams, loading, user]); // Remove hasGenerated from dependencies
 
   // Add this useEffect to monitor loading state
   useEffect(() => {
@@ -556,6 +577,39 @@ function GenerateContent() {
       return data
     }
     return null
+  }
+
+  if (!slides.length && !loading && prompt && !hasGenerated) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="bg-neutral-800 p-8 rounded-lg shadow-lg max-w-md w-full">
+          <h2 className="text-xl font-semibold text-white mb-4">Generate Presentation</h2>
+          <p className="text-neutral-300 mb-6">
+            You are about to generate a presentation about:
+          </p>
+          <div className="bg-neutral-700 p-3 rounded mb-6 text-white">
+            "{prompt}"
+          </div>
+          <div className="flex justify-between">
+            <button
+              onClick={() => window.history.back()}
+              className="bg-neutral-600 hover:bg-neutral-500 text-white px-4 py-2 rounded-md transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                setHasGenerated(true);
+                generateSlides();
+              }}
+              className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2 rounded-md transition-colors flex items-center gap-2"
+            >
+              Generate Presentation
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (loading || !authChecked) {

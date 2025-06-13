@@ -5,24 +5,32 @@ const HUGGING_FACE_API_KEY = process.env.HUGGING_FACE_API_KEY
 
 async function generateImage(prompt: string, retryCount = 0) {
   try {
+    console.log(`Generating image with prompt: "${prompt.substring(0, 30)}..."`);
+    
     const response = await axios.post(
       'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
       { 
         inputs: prompt,
         parameters: {
-          negative_prompt: "blurry, bad quality, distorted"
+          negative_prompt: "blurry, bad quality, distorted",
+          guidance_scale: 7.5,
+          num_inference_steps: 30,  // Reduce steps for faster generation
+          width: 768,  // Standard size that works well
+          height: 512
         }
       },
       {
         headers: {
           Authorization: `Bearer ${HUGGING_FACE_API_KEY}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'image/png'
         },
         responseType: 'arraybuffer',
-        timeout: 30000 // 30 second timeout
+        timeout: 60000 // Increase timeout to 60 seconds
       }
     );
 
+    console.log('Image generated successfully');
     const base64Image = Buffer.from(response.data).toString('base64');
     return `data:image/jpeg;base64,${base64Image}`;
   } catch (error: any) {
@@ -34,11 +42,21 @@ async function generateImage(prompt: string, retryCount = 0) {
     }
 
     if (error.code === 'ECONNABORTED' || error.response?.status === 504) {
+      console.error('Image generation timed out');
       return NextResponse.json({ 
         error: 'Image generation timed out. Please try again.' 
       }, { status: 504 });
     }
-    console.error('Hugging Face API error:', error);
+
+    if (error.response?.status === 402) {
+      console.error('API quota exceeded or invalid key (402 error)');
+      return NextResponse.json({ 
+        error: 'Hugging Face API quota exceeded or invalid API key. Please check your API key and quota status.',
+        imageUrl: '/placeholder.png'
+      }, { status: 402 });
+    }
+
+    console.error('Hugging Face API error:', error.response?.status || error.code || 'Unknown error');
     return NextResponse.json({ 
       error: 'Failed to generate image',
       imageUrl: '/placeholder.png'

@@ -16,7 +16,7 @@ const limiter = rateLimit({
 
 const model = new GoogleGenerativeAI(GEMINI_API_KEY!)
   .getGenerativeModel({ 
-    model: "gemini-1.5-pro",
+    model: "gemini-2.0-flash",
     safetySettings: [
       {
         category: HarmCategory.HARM_CATEGORY_HARASSMENT,
